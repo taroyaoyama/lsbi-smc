@@ -221,5 +221,9 @@ mvae_best.pth
 # Dataset files
 train_data.npz
 
+# Inference results
+posterior.mat
+
 # paper files
 papers
+docs
