@@ -5,9 +5,9 @@ import torch
 import torch.distributions as D
 import random
 
-from mvae import MVAE
+from example_shear4dof.mvae import MVAE
 
-from frfshearm import frfshearm2
+from example_shear4dof.frfshearm import frfshearm2
 from simulator.simulator import *
 
 from smc.smc import *
