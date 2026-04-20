@@ -8,15 +8,15 @@ import random
 from mvae import MVAE
 
 from frfshearm import frfshearm2
-from ..simulator.simulator import *
+from simulator.simulator import *
 
-from ..smc.smc import *
-from ..smc.prior import *
-from ..smc.kernel import *
-from ..smc.variables import *
-from ..smc.proposal import *
+from smc.smc import *
+from smc.prior import *
+from smc.kernel import *
+from smc.variables import *
+from smc.proposal import *
 
-from ..likelihood.latentlik import *
+from likelihood.latentlik import *
 
 def set_seed(seed: int):
     random.seed(seed)

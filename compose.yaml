@@ -1,0 +1,9 @@
+services:
+  claude:
+    build:
+      context: .
+      dockerfile: ./Dockerfile.claude
+    volumes:
+      - ./:/home/claude/workspace
+    working_dir: /home/claude/workspace
+    tty: true

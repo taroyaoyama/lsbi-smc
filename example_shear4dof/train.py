@@ -3,7 +3,7 @@ import torch
 from torch.utils.data import DataLoader, TensorDataset, random_split
 import os
 
-from mvae import MVAE
+from example_shear4dof.mvae import MVAE
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 

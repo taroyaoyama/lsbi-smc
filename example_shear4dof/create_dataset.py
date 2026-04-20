@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.stats import norm, qmc
-from frfshearm import *
-from ..simulator.simulator import *
+from example_shear4dof.frfshearm import *
+from simulator.simulator import *
 
 LLIM, ULIM = 0.33, 3.00
 

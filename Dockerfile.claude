@@ -1,0 +1,55 @@
+# --- Build Stage ---
+FROM ghcr.io/astral-sh/uv:latest AS uv_bin
+FROM python:3.12-slim
+
+# Install dependencies (最小限に整理)
+RUN apt-get update && apt-get install -y \
+    build-essential curl git sudo ca-certificates ripgrep tmux gnupg \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Node.js 20.x
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y nodejs
+
+# Install GitHub CLI
+RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg \
+    && chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
+    && apt-get update && apt-get install -y gh \
+    && rm -rf /var/lib/apt/lists/*
+
+# User setup
+RUN useradd -m -s /bin/bash claude && \
+    echo 'claude ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
+
+# --- 修正箇所 ---
+# 仮想環境用のディレクトリをrootで作成し、所有権をclaudeユーザーに変更しておく
+RUN mkdir -p /opt/claude_venv && chown claude:claude /opt/claude_venv
+
+USER claude
+ENV HOME=/home/claude
+WORKDIR $HOME/workspace
+
+# npm global setup
+ENV NPM_CONFIG_PREFIX=$HOME/.npm-global
+ENV PATH=$HOME/.npm-global/bin:$PATH
+RUN mkdir -p $HOME/.npm-global && \
+    npm install -g @anthropic-ai/claude-code
+
+
+# uvバイナリをコピー
+COPY --from=uv_bin /uv /uvx /bin/
+
+# uv config
+ENV UV_COMPILE_BYTECODE=1
+ENV UV_LINK_MODE=copy
+# --- ここがポイント ---
+# Claudeが作業中に使う仮想環境を /opt/venv に固定する
+# これにより、プロジェクト直下の .venv (ホストと共有) を汚さない
+ENV UV_PROJECT_ENVIRONMENT=/opt/claude_venv
+# ----------------------
+
+# 仮想環境のbinにもパスを通しておくと、claude-code経由での実行がスムーズになります
+ENV PATH="/opt/claude_venv/bin:$PATH"
+
+CMD ["tail", "-f", "/dev/null"]
