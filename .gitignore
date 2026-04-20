@@ -220,3 +220,6 @@ mvae_best.pth
 
 # Dataset files
 train_data.npz
+
+# paper files
+papers
