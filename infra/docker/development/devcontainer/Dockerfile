@@ -5,6 +5,10 @@ ENV TZ="$TZ"
 
 ARG CLAUDE_CODE_VERSION=latest
 
+ARG USER_UID=1000
+ARG USERNAME=node
+RUN if [ "$USER_UID" != "1000" ]; then usermod -u $USER_UID $USERNAME; fi
+
 # Install basic development tools and iptables/ipset
 RUN apt-get update && apt-get install -y --no-install-recommends \
     less \
@@ -33,11 +37,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Ensure default node user has access to /usr/local/share
 RUN mkdir -p /usr/local/share/npm-global && \
     chown -R node:node /usr/local/share
-
-ARG USER_UID=1000
-RUN if [ "$USER_UID" != "1000" ]; then usermod -u $USER_UID node; fi
-
-ARG USERNAME=node
 
 # Persist bash history.
 RUN SNIPPET="export PROMPT_COMMAND='history -a' && export HISTFILE=/commandhistory/.bash_history" \
@@ -101,9 +100,9 @@ USER node
 
 # Under this, customize the image as needed, e.g., install additional tools, set up configurations, etc.
 
-# Install UV and Python 3.14
+# Install UV and Python 3.12
 COPY --from=ghcr.io/astral-sh/uv:0.11.7 /uv /uvx /bin/
-RUN uv python install 3.14
+RUN uv python install 3.12
 
 # Copy and set up sync script
 COPY ./infra/docker/development/devcontainer/background-sync.sh /usr/local/bin/

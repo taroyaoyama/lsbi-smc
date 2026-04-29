@@ -10,6 +10,18 @@ services:
         GIT_DELTA_VERSION: "0.18.2"
         ZSH_IN_DOCKER_VERSION: "1.2.0"
         REPO_NAME: "lsbi-smc"
+    deploy:
+      resources:
+        limits:
+          cpus: '32.0'
+          memory: 128G
+        reservations:
+          cpus: '8.0'
+          memory: 32G
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
     volumes:
       - .:/workspace/lsbi-smc:cached
       # DevContainer専用のボリューム
