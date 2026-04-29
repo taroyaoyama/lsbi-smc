@@ -34,9 +34,13 @@ train_dataset, valid_dataset = random_split(
 )
 
 # create dataloaders
-bs = 256
-train_loader = DataLoader(train_dataset, batch_size=bs, shuffle=True)
-valid_loader = DataLoader(valid_dataset, batch_size=bs, shuffle=False)
+bs = 512
+train_loader = DataLoader(
+    train_dataset, batch_size=bs, shuffle=True, num_workers=8, pin_memory=True
+)
+valid_loader = DataLoader(
+    valid_dataset, batch_size=bs, shuffle=False, num_workers=4, pin_memory=True
+)
 
 # ---------------
 # MVAE Training!
@@ -44,7 +48,9 @@ valid_loader = DataLoader(valid_dataset, batch_size=bs, shuffle=False)
 
 # load mvae model
 ndof, z_dim = 4, 8
-model = MVAE(z_dim=z_dim, ch=1, size=1024, nlabel=ndof, depth=1).to(device)
+model: MVAE = torch.compile(  # type: ignore[assignment]
+    MVAE(z_dim=z_dim, ch=1, size=1024, nlabel=ndof, depth=1).to(device)
+)
 
 # Adam optimizer
 optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)

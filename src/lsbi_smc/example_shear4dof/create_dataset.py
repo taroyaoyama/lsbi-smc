@@ -20,7 +20,7 @@ def fun(x):
     )
 
 
-simulator = Simulator(fun, lims=[LLIM, ULIM], workers=2)
+simulator = Simulator(fun, lims=[LLIM, ULIM])
 
 # run simulators
 ndof = 4

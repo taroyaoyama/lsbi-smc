@@ -40,14 +40,15 @@ class MVAEBasedLogLikelihood:
             p.requires_grad_(False)
         for p in self.enc_x.parameters():
             p.requires_grad_(False)
+        self.enc_w.eval()
         self.enc_x.eval()
         with torch.no_grad():
             _, mu_obs, vr_obs = self.enc_x(self.obs)
         self.mu_obs = mu_obs
         self.vr_obs = vr_obs
 
+    @torch.no_grad()
     def __call__(self, theta, alp, tau):
         theta = theta.to(self.device)
-        self.enc_w.eval()
         _, mu_sim, vr_sim = self.enc_w(theta)
         return latent_space_loglik(self.mu_obs, self.vr_obs, mu_sim, vr_sim, alp=alp, tau=tau)
