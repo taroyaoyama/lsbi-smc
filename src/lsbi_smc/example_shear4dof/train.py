@@ -48,9 +48,8 @@ valid_loader = DataLoader(
 
 # load mvae model
 ndof, z_dim = 4, 8
-model: MVAE = torch.compile(  # type: ignore[assignment]
-    MVAE(z_dim=z_dim, ch=1, size=1024, nlabel=ndof, depth=1).to(device)
-)
+_mvae = MVAE(z_dim=z_dim, ch=1, size=1024, nlabel=ndof, depth=1).to(device)
+model: MVAE = torch.compile(_mvae)  # type: ignore[assignment]
 
 # Adam optimizer
 optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
@@ -109,7 +108,7 @@ for epoch in range(epochs):
         torch.save(
             {
                 "epoch": epoch,
-                "model_state_dict": model.state_dict(),
+                "model_state_dict": _mvae.state_dict(),
                 "optimizer_state_dict": optimizer.state_dict(),
             },
             pth_path,
