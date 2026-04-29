@@ -4,6 +4,7 @@ services:
       context: .
       dockerfile: ./infra/docker/development/devcontainer/Dockerfile
       args:
+        USER_UID: ${UID:-1000}
         TZ: Asia/Tokyo
         CLAUDE_CODE_VERSION: "latest"
         GIT_DELTA_VERSION: "0.18.2"

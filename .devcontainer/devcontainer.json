@@ -1,5 +1,5 @@
 {
-  "name": "Monorepo-Dev-Claude",
+  "name": "Dev-Claude",
   "dockerComposeFile": ["../compose.yaml"],
   "service": "dev-container",
   "workspaceFolder": "/workspace/lsbi-smc",
