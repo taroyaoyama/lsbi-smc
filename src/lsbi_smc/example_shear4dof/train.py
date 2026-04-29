@@ -54,9 +54,8 @@ model: MVAE = torch.compile(_mvae)  # type: ignore[assignment]
 # Adam optimizer
 optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
 
-# AMP
+# AMP: bfloat16 has the same dynamic range as fp32, avoiding fp16 overflow on init
 use_amp = device.type == "cuda"
-scaler = torch.amp.GradScaler("cuda", enabled=use_amp)  # type: ignore[attr-defined]
 
 # training
 epochs = 1000
@@ -75,11 +74,10 @@ for epoch in range(epochs):
         y = y.to(device)
         yn = yn.to(device)
         optimizer.zero_grad(set_to_none=True)
-        with torch.autocast(device_type=device.type, enabled=use_amp):
+        with torch.autocast(device_type=device.type, enabled=use_amp, dtype=torch.bfloat16):
             trl, kll, rcl = model.loss(yn, y, x, alp1=5.0)
-        scaler.scale(trl).backward()
-        scaler.step(optimizer)
-        scaler.update()
+        trl.backward()
+        optimizer.step()
 
         # summing up loss values
         tr_loss += trl.item() * y.size(0)
@@ -93,7 +91,7 @@ for epoch in range(epochs):
             x = x.to(device)
             y = y.to(device)
             yn = yn.to(device)
-            with torch.autocast(device_type=device.type, enabled=use_amp):
+            with torch.autocast(device_type=device.type, enabled=use_amp, dtype=torch.bfloat16):
                 vll, _, _ = model.loss(yn, y, x, alp1=5.0)
 
             # summing up loss values
