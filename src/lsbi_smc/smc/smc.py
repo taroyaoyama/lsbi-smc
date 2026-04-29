@@ -1,12 +1,13 @@
-import torch
 import numpy as np
 import pandas as pd
+import torch
 
 
 class Particles:
-    '''
+    """
     Class for particles.
-    '''
+    """
+
     def __init__(self, pop_ini):
         self.pop = pop_ini
         self.dq = 0.0
@@ -14,33 +15,27 @@ class Particles:
         self.weights = None
         self.dim = len(pop_ini[0])
         self.size = len(pop_ini)
-    
-    def eval_weights(self, dq = None):
+
+    def eval_weights(self, dq=None):
         if dq is not None:
             self.dq = dq
         z = self.dq * self.lp
-        z = torch.nan_to_num(z, neginf = -1e30, posinf = 1e30)
+        z = torch.nan_to_num(z, neginf=-1e30, posinf=1e30)
         z = z - torch.max(z)
         w = torch.exp(z)
-        w = torch.nan_to_num(w, nan = 0.0, posinf = 0.0, neginf = 0.0)
+        w = torch.nan_to_num(w, nan=0.0, posinf=0.0, neginf=0.0)
         s = w.sum()
-        if not torch.isfinite(s) or s <= 0:
-            w = torch.full_like(w, 1.0 / len(w))
-        else:
-            w = w / s
-        w = torch.clamp(w, min = 0)
+        w = torch.full_like(w, 1.0 / len(w)) if not torch.isfinite(s) or s <= 0 else w / s
+        w = torch.clamp(w, min=0)
         s = w.sum()
-        if s <= 0:
-            w = torch.full_like(w, 1.0 / len(w))
-        else:
-            w = w / s
+        w = torch.full_like(w, 1.0 / len(w)) if s <= 0 else w / s
         self.weights = w
 
-    def resample(self, dq = None):
+    def resample(self, dq=None):
         if dq is not None:
             self.dq = dq
         self.eval_weights()
-        idx = torch.multinomial(self.weights, self.size, replacement = True)
+        idx = torch.multinomial(self.weights, self.size, replacement=True)
         self.pop = self.pop[idx]
         self.lp = self.lp[idx]
 
@@ -62,7 +57,7 @@ def _ess_from_lp(delta_q, lp_np):
     return ess(w)
 
 
-def _find_next_q(q_prev, q_tar, lp_np, ess_tar, tol = 1e-6, maxit = 50):
+def _find_next_q(q_prev, q_tar, lp_np, ess_tar, tol=1e-6, maxit=50):
     lo, hi = q_prev, q_tar
     if _ess_from_lp(hi - q_prev, lp_np) >= ess_tar:
         return hi
@@ -78,16 +73,11 @@ def _find_next_q(q_prev, q_tar, lp_np, ess_tar, tol = 1e-6, maxit = 50):
 
 
 class SMC:
-    '''
+    """
     Class for Sequential Monte Calro Sampler.
-    '''
-    def __init__(self,
-        pop_size,
-        likelihood,
-        prior,
-        kernel,
-        q_tar = 1.0
-    ):
+    """
+
+    def __init__(self, pop_size, likelihood, prior, kernel, q_tar=1.0):
         self.pop_size = pop_size
         self.likelihood = likelihood
         self.prior = prior
@@ -103,22 +93,21 @@ class SMC:
         self.particles = Particles(pop_ini)
         self.particles.lp = self.likelihood(self.particles.pop).to(self.device)
         self.pops.append(pop_ini)
-    
+
     def assign_pop_ini(self, pop):
         pop = pop.to(self.device)
         self.particles = Particles(pop)
         self.particles.lp = self.likelihood(self.particles.pop).to(self.device)
         self.pops = [pop]
-    
-    def run(self, ess_tar_ratio = 0.8, t_max = 100, print_summary = True, mcmc_iter = 1):
-        '''
+
+    def run(self, ess_tar_ratio=0.8, t_max=100, print_summary=True, mcmc_iter=1):
+        """
         Running Sequeintial Monte Carlo.
-        '''
+        """
         ess_tar = ess_tar_ratio * self.pop_size
         t = 0
 
         while self.q[-1] < self.q_tar and t < t_max:
-
             # find next q
             lp_np = self.particles.lp.detach().cpu().numpy()
             q_new = _find_next_q(self.q[-1], self.q_tar, lp_np, ess_tar)
@@ -131,8 +120,8 @@ class SMC:
             self.particles.weights = torch.full(
                 (self.particles.size,),
                 1.0 / self.particles.size,
-                device = self.device,
-                dtype = self.particles.pop.dtype
+                device=self.device,
+                dtype=self.particles.pop.dtype,
             )
             self.particles.dq = 0.0
 
@@ -155,24 +144,26 @@ class SMC:
             self.pops.append(self.particles.pop.detach())
 
             print(
-                f'(SMC: Target ESS = {ess_tar_ratio:.2f} * N) Iteration {t:02d} | q_t = {self.q[-1]:.5f}'
+                f"(SMC: Target ESS = {ess_tar_ratio:.2f} * N) Iteration {t:02d} | q_t = {self.q[-1]:.5f}"
             )
             t += 1
 
         if print_summary:
-            print('\nResults:')
+            print("\nResults:")
             print(self.summary())
 
     def summary(self):
         pop = self.pops[-1].detach().cpu().numpy()
-        result = pd.DataFrame({
-            'name': self.prior.names,
-            'mean': np.mean(pop, axis = 0),
-            'sd'  : np.std (pop, axis = 0),
-            'q05' : np.percentile(pop,  5, axis = 0),
-            'q25' : np.percentile(pop, 25, axis = 0),
-            'q50' : np.percentile(pop, 50, axis = 0),
-            'q75' : np.percentile(pop, 75, axis = 0),
-            'q95' : np.percentile(pop, 95, axis = 0),
-        })
+        result = pd.DataFrame(
+            {
+                "name": self.prior.names,
+                "mean": np.mean(pop, axis=0),
+                "sd": np.std(pop, axis=0),
+                "q05": np.percentile(pop, 5, axis=0),
+                "q25": np.percentile(pop, 25, axis=0),
+                "q50": np.percentile(pop, 50, axis=0),
+                "q75": np.percentile(pop, 75, axis=0),
+                "q95": np.percentile(pop, 95, axis=0),
+            }
+        )
         return result

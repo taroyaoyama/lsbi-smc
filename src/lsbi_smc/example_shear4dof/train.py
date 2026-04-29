@@ -1,28 +1,27 @@
 import numpy as np
 import torch
 from torch.utils.data import DataLoader, TensorDataset, random_split
-import os
 
-from example_shear4dof.mvae import MVAE
+from lsbi_smc.example_shear4dof.mvae import MVAE
 
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # load .npz file & reshape
-npl = np.load('train_data.npz')
-x_sim = npl['x_sim'].astype(np.float32)
-y_sim = npl['y_sim'].astype(np.float32)
-y_sim_n = npl['y_sim_n'].astype(np.float32)
+npl = np.load("train_data.npz")
+x_sim = npl["x_sim"].astype(np.float32)
+y_sim = npl["y_sim"].astype(np.float32)
+y_sim_n = npl["y_sim_n"].astype(np.float32)
 del npl
 
 # convert to Tensor on GPU
 ch = [-1]
 x_sim_tensor = torch.from_numpy(x_sim)
-y_sim_tensor = torch.from_numpy(y_sim[:,ch,:,:])
-y_sim_n_tensor = torch.from_numpy(y_sim_n[:,ch,:,:])
+y_sim_tensor = torch.from_numpy(y_sim[:, ch, :, :])
+y_sim_n_tensor = torch.from_numpy(y_sim_n[:, ch, :, :])
 
 # standardize
 y_mn, y_sd = y_sim_tensor.mean(), y_sim_tensor.std()
-y_sim_tensor   = (y_sim_tensor   - y_mn) / y_sd
+y_sim_tensor = (y_sim_tensor - y_mn) / y_sd
 y_sim_n_tensor = (y_sim_n_tensor - y_mn) / y_sd
 
 # create datasets
@@ -31,13 +30,13 @@ n_total = len(dataset)
 n_train = int(0.9 * n_total)
 n_valid = n_total - n_train
 train_dataset, valid_dataset = random_split(
-    dataset, [n_train, n_valid], generator = torch.Generator().manual_seed(42)
+    dataset, [n_train, n_valid], generator=torch.Generator().manual_seed(42)
 )
 
 # create dataloaders
 bs = 256
-train_loader = DataLoader(train_dataset, batch_size = bs, shuffle = True )
-valid_loader = DataLoader(valid_dataset, batch_size = bs, shuffle = False)
+train_loader = DataLoader(train_dataset, batch_size=bs, shuffle=True)
+valid_loader = DataLoader(valid_dataset, batch_size=bs, shuffle=False)
 
 # ---------------
 # MVAE Training!
@@ -45,19 +44,18 @@ valid_loader = DataLoader(valid_dataset, batch_size = bs, shuffle = False)
 
 # load mvae model
 ndof, z_dim = 4, 8
-model = MVAE(z_dim = z_dim, ch = 1, size = 1024, nlabel = ndof, depth = 1).to(device)
+model = MVAE(z_dim=z_dim, ch=1, size=1024, nlabel=ndof, depth=1).to(device)
 
 # Adam optimizer
-optimizer = torch.optim.Adam(model.parameters(), lr = 1e-3)
+optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
 
 # training
 epochs, epochs_for_save = 1000, 100
-best_vl_loss = float('inf')
+best_vl_loss = float("inf")
 patience = 20
 epochs_no_improve = 0
 
 for epoch in range(epochs):
-
     # for tracking loss values -----
     tr_loss, kl_loss, rc_loss, vl_loss = 0, 0, 0, 0
 
@@ -68,7 +66,7 @@ for epoch in range(epochs):
         y = y.to(device)
         yn = yn.to(device)
         optimizer.zero_grad()
-        trl, kll, rcl = model.loss(yn, y, x, alp1 = 5.0)
+        trl, kll, rcl = model.loss(yn, y, x, alp1=5.0)
         trl.backward()
         optimizer.step()
 
@@ -84,32 +82,35 @@ for epoch in range(epochs):
             x = x.to(device)
             y = y.to(device)
             yn = yn.to(device)
-            vll, _, _ = model.loss(yn, y, x, alp1 = 5.0)
+            vll, _, _ = model.loss(yn, y, x, alp1=5.0)
 
             # summing up loss values
             vl_loss += vll.item() * y.size(0)
-        
+
     # averaging & print
     tr_loss /= len(train_loader.dataset)
     kl_loss /= len(train_loader.dataset)
     rc_loss /= len(train_loader.dataset)
     vl_loss /= len(valid_loader.dataset)
 
-    print(f'Epoch {epoch:03d}: Train loss = {tr_loss:16.4f} | Valid loss = {vl_loss:16.4f}')
+    print(f"Epoch {epoch:03d}: Train loss = {tr_loss:16.4f} | Valid loss = {vl_loss:16.4f}")
 
     # plot & save -----
     if vl_loss < best_vl_loss:
         best_vl_loss = vl_loss
         epochs_no_improve = 0
-        pth_path = 'mvae_best.pth'
-        torch.save({
-            'epoch': epoch, 'model_state_dict': model.state_dict(),
-            'optimizer_state_dict': optimizer.state_dict()
-            }, pth_path
+        pth_path = "mvae_best.pth"
+        torch.save(
+            {
+                "epoch": epoch,
+                "model_state_dict": model.state_dict(),
+                "optimizer_state_dict": optimizer.state_dict(),
+            },
+            pth_path,
         )
     else:
         epochs_no_improve += 1
-    
+
     # early stopping
     if epochs_no_improve >= patience:
         break
