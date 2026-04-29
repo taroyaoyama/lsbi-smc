@@ -1,8 +1,12 @@
+from __future__ import annotations
+
 import numpy as np
+import numpy.typing as npt
 import torch
-import torch.distributions as D
+import torch.distributions as dist
 from scipy import io
 from scipy.stats import norm
+from torch import Tensor
 
 from lsbi_smc.example_shear4dof.frfshearm import frfshearm2
 from lsbi_smc.example_shear4dof.mvae import MVAE
@@ -18,7 +22,7 @@ from lsbi_smc.smc.variables import Constant, Normal
 LLIM, ULIM = 0.33, 3.00
 
 # standard normal dist. class
-stdnorm = D.Normal(0.0, 1.0)
+stdnorm = dist.Normal(0.0, 1.0)
 
 # normalizer
 y_mn, y_sd = -2.1384575366973877, 2.809697389602661
@@ -36,7 +40,7 @@ model.eval()
 
 
 # simulator
-def fun(x):
+def fun(x: npt.NDArray[np.float32]) -> npt.NDArray[np.float64]:
     return frfshearm2(
         x * 1000,
         ms=1.0,
@@ -70,11 +74,19 @@ class LogLikelihood(MVAEBasedLogLikelihood):
     Wrapper class to incorpolate 'tau' into mvae-based loglik.
     """
 
-    def __init__(self, enc_w, enc_x, obs, device):
+    n_call: int
+
+    def __init__(
+        self,
+        enc_w: torch.nn.Module,
+        enc_x: torch.nn.Module,
+        obs: Tensor,
+        device: torch.device,
+    ) -> None:
         super().__init__(enc_w, enc_x, obs, device)
         self.n_call = 0
 
-    def __call__(self, theta):
+    def __call__(self, theta: Tensor) -> Tensor:  # type: ignore[override]
         theta = stdnorm.cdf(theta)
         self.n_call += len(theta)
         return super().__call__(theta, alp=1.0, tau=0.00)
@@ -85,7 +97,7 @@ class LogLikelihood(MVAEBasedLogLikelihood):
 # ---------------------
 
 k_labels = [f"k{i:02}" for i in range(1, ndof + 1)]
-variables = [Normal(l, Constant(0.0), Constant(1.0)) for l in k_labels]
+variables = [Normal(label, Constant(0.0), Constant(1.0)) for label in k_labels]
 prior = HierarchicalPrior(variables)
 
 # ---------------------

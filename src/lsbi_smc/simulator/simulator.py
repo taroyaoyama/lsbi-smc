@@ -1,11 +1,27 @@
+from __future__ import annotations
+
 import os
+from collections.abc import Callable
 from multiprocessing.dummy import Pool as ThreadPool
 
 import numpy as np
+import numpy.typing as npt
 
 
 class Simulator:
-    def __init__(self, fun, lims, workers=None, chunksize=8):
+    fun: Callable[[npt.NDArray[np.float32]], npt.NDArray[np.float64]]
+    chunksize: int
+    llim: float
+    ulim: float
+    workers: int
+
+    def __init__(
+        self,
+        fun: Callable[[npt.NDArray[np.float32]], npt.NDArray[np.float64]],
+        lims: list[float] | tuple[float, float],
+        workers: int | None = None,
+        chunksize: int = 8,
+    ) -> None:
         self.fun = fun
         self.chunksize = chunksize
         self.llim = lims[0]
@@ -15,7 +31,7 @@ class Simulator:
         else:
             self.workers = workers
 
-    def __call__(self, theta):
+    def __call__(self, theta: npt.NDArray[np.float32]) -> npt.NDArray[np.float32]:
         theta = theta * (self.ulim - self.llim) + self.llim
         with ThreadPool(processes=self.workers) as pool:
             sims_list = pool.map(self.fun, list(theta), self.chunksize)

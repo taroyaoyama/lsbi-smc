@@ -1,5 +1,13 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 import torch
-import torch.distributions as D
+import torch.distributions as dist
+from torch import Tensor
+
+if TYPE_CHECKING:
+    from lsbi_smc.smc.smc import Particles
 
 
 class ChingAndChenProposal:
@@ -7,28 +15,30 @@ class ChingAndChenProposal:
     Proposal Gaussian distribution given by Ching and Chen (2007).
     """
 
-    def __init__(self, b):
+    b: float
+
+    def __init__(self, b: float) -> None:
         self.b = b
 
-    def cov_proposal(self, pop, weights):
+    def cov_proposal(self, pop: Tensor, weights: Tensor) -> Tensor:
         device = pop.device
-        X = pop
         w = torch.nan_to_num(weights, nan=0.0, posinf=0.0, neginf=0.0)
         s = w.sum()
         if s <= 0 or not torch.isfinite(s):
             w = torch.full_like(w, 1.0 / len(w))
         w = w / w.sum()
-        mu = (X * w.unsqueeze(1)).sum(dim=0)
-        Xm = X - mu
-        cov = Xm.t().mm(torch.diag(w)).mm(Xm)
+        mu = (pop * w.unsqueeze(1)).sum(dim=0)
+        x_centered = pop - mu
+        cov = x_centered.t().mm(torch.diag(w)).mm(x_centered)
         eps = 1e-6
-        cov = cov * (self.b**2) + eps * torch.eye(X.shape[1], device=device)
+        cov = cov * (self.b**2) + eps * torch.eye(pop.shape[1], device=device)
         return cov
 
-    def __call__(self, particles):
+    def __call__(self, particles: Particles) -> Tensor:
+        assert particles.weights is not None
         device = particles.pop.device
         cov = self.cov_proposal(particles.pop, particles.weights)
-        mvn = D.MultivariateNormal(
+        mvn = dist.MultivariateNormal(
             loc=torch.zeros(particles.dim, device=device), covariance_matrix=cov
         )
         return particles.pop + mvn.sample((particles.size,))

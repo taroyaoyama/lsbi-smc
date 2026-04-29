@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 import numpy as np
+import numpy.typing as npt
 from scipy.stats import norm, qmc
 
 from lsbi_smc.example_shear4dof.frfshearm import frfshearm2
@@ -8,7 +11,7 @@ LLIM, ULIM = 0.33, 3.00
 
 
 # define simulator
-def fun(x):
+def fun(x: npt.NDArray[np.float32]) -> npt.NDArray[np.float64]:
     return frfshearm2(
         x * 1000,
         ms=1.0,

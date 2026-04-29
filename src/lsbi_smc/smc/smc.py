@@ -1,6 +1,12 @@
+from __future__ import annotations
+
+from typing import Any
+
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
 import torch
+from torch import Tensor
 
 
 class Particles:
@@ -8,7 +14,14 @@ class Particles:
     Class for particles.
     """
 
-    def __init__(self, pop_ini):
+    pop: Tensor
+    dq: float
+    lp: Tensor | None
+    weights: Tensor | None
+    dim: int
+    size: int
+
+    def __init__(self, pop_ini: Tensor) -> None:
         self.pop = pop_ini
         self.dq = 0.0
         self.lp = None
@@ -16,9 +29,10 @@ class Particles:
         self.dim = len(pop_ini[0])
         self.size = len(pop_ini)
 
-    def eval_weights(self, dq=None):
+    def eval_weights(self, dq: float | None = None) -> None:
         if dq is not None:
             self.dq = dq
+        assert self.lp is not None
         z = self.dq * self.lp
         z = torch.nan_to_num(z, neginf=-1e30, posinf=1e30)
         z = z - torch.max(z)
@@ -31,33 +45,43 @@ class Particles:
         w = torch.full_like(w, 1.0 / len(w)) if s <= 0 else w / s
         self.weights = w
 
-    def resample(self, dq=None):
+    def resample(self, dq: float | None = None) -> None:
         if dq is not None:
             self.dq = dq
         self.eval_weights()
+        assert self.weights is not None
+        assert self.lp is not None
         idx = torch.multinomial(self.weights, self.size, replacement=True)
         self.pop = self.pop[idx]
         self.lp = self.lp[idx]
 
-    def replace(self, idx, pop_new, lp_new):
+    def replace(self, idx: Tensor, pop_new: Tensor, lp_new: Tensor) -> None:
+        assert self.lp is not None
         self.pop[idx] = pop_new[idx]
         self.lp[idx] = lp_new[idx]
 
 
-def ess(weights_np):
+def ess(weights_np: npt.NDArray[np.float64]) -> float:
     s1 = weights_np.sum()
     s2 = (weights_np**2).sum()
-    return (s1 * s1) / s2
+    return float((s1 * s1) / s2)
 
 
-def _ess_from_lp(delta_q, lp_np):
+def _ess_from_lp(delta_q: float, lp_np: npt.NDArray[np.float64]) -> float:
     z = delta_q * lp_np
     z -= z.max()
     w = np.exp(z)
     return ess(w)
 
 
-def _find_next_q(q_prev, q_tar, lp_np, ess_tar, tol=1e-6, maxit=50):
+def _find_next_q(
+    q_prev: float,
+    q_tar: float,
+    lp_np: npt.NDArray[np.float64],
+    ess_tar: float,
+    tol: float = 1e-6,
+    maxit: int = 50,
+) -> float:
     lo, hi = q_prev, q_tar
     if _ess_from_lp(hi - q_prev, lp_np) >= ess_tar:
         return hi
@@ -77,7 +101,24 @@ class SMC:
     Class for Sequential Monte Calro Sampler.
     """
 
-    def __init__(self, pop_size, likelihood, prior, kernel, q_tar=1.0):
+    pop_size: int
+    likelihood: Any
+    prior: Any
+    kernel: Any
+    pops: list[Tensor]
+    q: list[float]
+    q_tar: float
+    device: torch.device
+    particles: Particles
+
+    def __init__(
+        self,
+        pop_size: int,
+        likelihood: Any,
+        prior: Any,
+        kernel: Any,
+        q_tar: float = 1.0,
+    ) -> None:
         self.pop_size = pop_size
         self.likelihood = likelihood
         self.prior = prior
@@ -94,13 +135,19 @@ class SMC:
         self.particles.lp = self.likelihood(self.particles.pop).to(self.device)
         self.pops.append(pop_ini)
 
-    def assign_pop_ini(self, pop):
+    def assign_pop_ini(self, pop: Tensor) -> None:
         pop = pop.to(self.device)
         self.particles = Particles(pop)
         self.particles.lp = self.likelihood(self.particles.pop).to(self.device)
         self.pops = [pop]
 
-    def run(self, ess_tar_ratio=0.8, t_max=100, print_summary=True, mcmc_iter=1):
+    def run(
+        self,
+        ess_tar_ratio: float = 0.8,
+        t_max: int = 100,
+        print_summary: bool = True,
+        mcmc_iter: int = 1,
+    ) -> None:
         """
         Running Sequeintial Monte Carlo.
         """
@@ -109,6 +156,7 @@ class SMC:
 
         while self.q[-1] < self.q_tar and t < t_max:
             # find next q
+            assert self.particles.lp is not None
             lp_np = self.particles.lp.detach().cpu().numpy()
             q_new = _find_next_q(self.q[-1], self.q_tar, lp_np, ess_tar)
             self.q.append(q_new)
@@ -144,7 +192,8 @@ class SMC:
             self.pops.append(self.particles.pop.detach())
 
             print(
-                f"(SMC: Target ESS = {ess_tar_ratio:.2f} * N) Iteration {t:02d} | q_t = {self.q[-1]:.5f}"
+                f"(SMC: Target ESS = {ess_tar_ratio:.2f} * N) "
+                f"Iteration {t:02d} | q_t = {self.q[-1]:.5f}"
             )
             t += 1
 
@@ -152,7 +201,7 @@ class SMC:
             print("\nResults:")
             print(self.summary())
 
-    def summary(self):
+    def summary(self) -> pd.DataFrame:
         pop = self.pops[-1].detach().cpu().numpy()
         result = pd.DataFrame(
             {

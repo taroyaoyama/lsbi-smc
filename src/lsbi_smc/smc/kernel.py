@@ -1,5 +1,14 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
+
 import torch
-import torch.distributions as D
+import torch.distributions as dist
+from torch import Tensor
+
+if TYPE_CHECKING:
+    from lsbi_smc.smc.prior import HierarchicalPrior
+    from lsbi_smc.smc.smc import Particles
 
 
 class RWMetropolisKernel:
@@ -7,10 +16,16 @@ class RWMetropolisKernel:
     Random Walk Metropolis-Hastings Kernel
     """
 
-    def __init__(self, proposal):
+    def __init__(self, proposal: Any) -> None:
         self.proposal = proposal
 
-    def __call__(self, particles, q, prior, likelihood):
+    def __call__(
+        self,
+        particles: Particles,
+        q: float,
+        prior: HierarchicalPrior,
+        likelihood: Any,
+    ) -> tuple[Tensor, Tensor, Tensor]:
         device = particles.pop.device
         pop_new = self.proposal(particles).to(device)
 
@@ -20,6 +35,7 @@ class RWMetropolisKernel:
         lp_new = likelihood(pop_new)
 
         # MH acceptance ratio
+        assert particles.lp is not None
         log_rat = (
             q * (lp_new - particles.lp)
             + prior.lp(pop_new).to(device)
@@ -39,16 +55,25 @@ class HMCKernel:
     Hamiltonian Monte Carlo Kernal
     """
 
-    def __init__(self, L, eps):
-        self.L = L
+    L: int
+    eps: float
+
+    def __init__(self, leapfrog_steps: int, eps: float) -> None:
+        self.L = leapfrog_steps
         self.eps = eps
 
-    def __call__(self, particles, q, prior, likelihood):
+    def __call__(
+        self,
+        particles: Particles,
+        q: float,
+        prior: HierarchicalPrior,
+        likelihood: Any,
+    ) -> tuple[Tensor, Tensor, Tensor]:
         device = particles.pop.device
         dtype = particles.pop.dtype
-        B, d = particles.pop.shape
+        b_size, n_dim = particles.pop.shape
 
-        def U(th):
+        def potential_energy(th: Tensor) -> Tensor:
             lp = q * likelihood(th) + prior.lp(th)
             return -lp
 
@@ -57,33 +82,33 @@ class HMCKernel:
         # ---------------------
 
         # momentum prior
-        m = torch.ones(d, device=device)
-        mvn = D.MultivariateNormal(torch.zeros(d).to(device), torch.diag(m))
+        m = torch.ones(n_dim, device=device)
+        mvn = dist.MultivariateNormal(torch.zeros(n_dim).to(device), torch.diag(m))
 
         # initialize
         th = particles.pop.detach().clone().to(device)
         pp = mvn.sample((len(th),)).to(device)
         with torch.no_grad():
-            H0 = U(th) + 0.5 * (pp**2 / m).sum(dim=1)
+            h0 = potential_energy(th) + 0.5 * (pp**2 / m).sum(dim=1)
 
         # leapfrog integrator
         for _ in range(self.L):
             th = th.detach().requires_grad_(True)
-            g = torch.autograd.grad(U(th).sum(), th)[0]
+            g = torch.autograd.grad(potential_energy(th).sum(), th)[0]
             with torch.no_grad():
                 pp = pp - 0.5 * self.eps * g
                 th = th + self.eps * (pp * 1 / m)
             th = th.detach().requires_grad_(True)
-            g = torch.autograd.grad(U(th).sum(), th)[0]
+            g = torch.autograd.grad(potential_energy(th).sum(), th)[0]
             with torch.no_grad():
                 pp = pp - 0.5 * self.eps * g
 
         # M-H rule
         with torch.no_grad():
-            H1 = U(th) + 0.5 * (pp**2 / m).sum(dim=1)
-            dH = H1 - H0
-            acc = torch.exp(-dH).clamp(max=1.0)
-            u = torch.rand(B, device=device, dtype=dtype)
+            h1 = potential_energy(th) + 0.5 * (pp**2 / m).sum(dim=1)
+            dh = h1 - h0
+            acc = torch.exp(-dh).clamp(max=1.0)
+            u = torch.rand(b_size, device=device, dtype=dtype)
             accept = u < acc
 
         # support check

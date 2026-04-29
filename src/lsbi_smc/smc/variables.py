@@ -1,9 +1,23 @@
+from __future__ import annotations
+
+from typing import Any
+
 import torch
-import torch.distributions as D
+import torch.distributions as dist
+from torch import Tensor
 
 
 class ConstantVector:
-    def __init__(self, value, device=None, dtype=torch.float32):
+    _values: Tensor
+    depth: int
+    dim: int
+
+    def __init__(
+        self,
+        value: Any,
+        device: torch.device | str | None = None,
+        dtype: torch.dtype = torch.float32,
+    ) -> None:
         t = torch.as_tensor(value, dtype=dtype)
         if device is not None:
             t = t.to(device)
@@ -11,7 +25,7 @@ class ConstantVector:
         self.depth = 0
         self.dim = self._values.shape[1]
 
-    def values(self, n=1, device=None):
+    def values(self, n: int = 1, device: torch.device | str | None = None) -> Tensor:
         v = torch.tile(self._values, (n, 1))
         if device is not None:
             v = v.to(device)
@@ -19,7 +33,7 @@ class ConstantVector:
 
 
 class Constant(ConstantVector):
-    def __init__(self, value):
+    def __init__(self, value: float | int) -> None:
         super().__init__([value])
 
 
@@ -28,7 +42,15 @@ class Uniform:
     Class for Uniform random variables.
     """
 
-    def __init__(self, name, lower, upper):
+    _values: Tensor | None
+    name: str
+    parents: list[Any]
+    depth: int
+    lower: Any
+    upper: Any
+    dim: int
+
+    def __init__(self, name: str, lower: Any, upper: Any) -> None:
         self.name = name
         self.parents = [lower, upper]
         self.depth = max([parent.depth for parent in self.parents]) + 1
@@ -37,7 +59,7 @@ class Uniform:
         self.upper = upper
         self.dim = self.lower.dim
 
-    def values(self, n=None):
+    def values(self, n: int | None = None) -> Tensor:
         if self._values is None:
             raise ValueError(
                 "Error: self.values is not initialized. Call sample() before accessing values."
@@ -46,27 +68,27 @@ class Uniform:
             raise ValueError(f"Error: Expected {n} samples, but got {len(self._values)}.")
         return self._values
 
-    def sample(self, n, detach=False):
+    def sample(self, n: int, detach: bool = False) -> Tensor | None:
         device = self.lower._values.device if hasattr(self.lower, "_values") else None
         lv = self.lower.values(n, device=device)
         uv = self.upper.values(n, device=device)
-        sampler = D.Uniform(lv, uv)
+        sampler = dist.Uniform(lv, uv)
         values = sampler.sample((1,))[0]
         if detach:
             return values
-        else:
-            self._values = values
+        self._values = values
+        return None
 
-    def lp(self, values=None):
+    def lp(self, values: Tensor | None = None) -> Tensor:
         if values is None:
             values = self.values()
         n = len(values)
         lv = self.lower.values(n, device=values.device)
         uv = self.upper.values(n, device=values.device)
-        sampler = D.Uniform(lv, uv)
+        sampler = dist.Uniform(lv, uv)
         return sampler.log_prob(values)
 
-    def check_support(self, values):
+    def check_support(self, values: Tensor) -> Tensor:
         n = len(values)
         lv = self.lower.values(n, device=values.device)
         uv = self.upper.values(n, device=values.device)
@@ -78,7 +100,15 @@ class Normal:
     Class for Normal random variables.
     """
 
-    def __init__(self, name, mu, sg):
+    _values: Tensor | None
+    name: str
+    parents: list[Any]
+    depth: int
+    mu: Any
+    sg: Any
+    dim: int
+
+    def __init__(self, name: str, mu: Any, sg: Any) -> None:
         self.name = name
         self.parents = [mu, sg]
         self.depth = max([parent.depth for parent in self.parents]) + 1
@@ -87,7 +117,7 @@ class Normal:
         self.sg = sg
         self.dim = self.mu.dim
 
-    def values(self, n=None):
+    def values(self, n: int | None = None) -> Tensor:
         if self._values is None:
             raise ValueError(
                 "Error: self.values is not initialized. Call sample() before accessing values."
@@ -96,19 +126,19 @@ class Normal:
             raise ValueError(f"Error: Expected {n} samples, but got {len(self._values)}.")
         return self._values
 
-    def sample(self, n, detach=False):
+    def sample(self, n: int, detach: bool = False) -> Tensor | None:
         mv = self.mu.values(n)
         sv = self.sg.values(n)
         if sv.device != mv.device:
             sv = sv.to(mv.device)
-        sampler = D.Normal(mv, sv)
+        sampler = dist.Normal(mv, sv)
         values = sampler.sample((1,))[0]
         if detach:
             return values
-        else:
-            self._values = values
+        self._values = values
+        return None
 
-    def lp(self, values=None):
+    def lp(self, values: Tensor | None = None) -> Tensor:
         if values is None:
             values = self.values()
         n = len(values)
@@ -118,10 +148,10 @@ class Normal:
             mv = mv.to(values.device)
         if sv.device != values.device:
             sv = sv.to(values.device)
-        sampler = D.Normal(mv, sv)
+        sampler = dist.Normal(mv, sv)
         return sampler.log_prob(values)
 
-    def check_support(self, values):
+    def check_support(self, values: Tensor) -> Tensor:
         return torch.ones_like(values, dtype=torch.bool, device=values.device)
 
 
@@ -130,29 +160,29 @@ class HalfNormal(Normal):
     Class for Half-normal random variables.
     """
 
-    def __init__(self, name, sg):
+    def __init__(self, name: str, sg: Any) -> None:
         super().__init__(name, Constant(0.0), sg)
 
-    def sample(self, n, detach=False):
+    def sample(self, n: int, detach: bool = False) -> Tensor | None:
         sv = self.sg.values(n)
-        sampler = D.HalfNormal(sv)
+        sampler = dist.HalfNormal(sv)
         values = sampler.sample((1,))[0]
         if detach:
             return values
-        else:
-            self._values = values
+        self._values = values
+        return None
 
-    def lp(self, values=None):
+    def lp(self, values: Tensor | None = None) -> Tensor:
         if values is None:
             values = self.values()
         n = len(values)
         sv = self.sg.values(n)
         if sv.device != values.device:
             sv = sv.to(values.device)
-        sampler = D.HalfNormal(sv)
+        sampler = dist.HalfNormal(sv)
         return sampler.log_prob(values)
 
-    def check_support(self, values):
+    def check_support(self, values: Tensor) -> Tensor:
         return values >= 0
 
 
@@ -161,7 +191,15 @@ class Laplace:
     Class for Laplace random variables.
     """
 
-    def __init__(self, name, mu, b):
+    _values: Tensor | None
+    name: str
+    parents: list[Any]
+    depth: int
+    mu: Any
+    b: Any
+    dim: int
+
+    def __init__(self, name: str, mu: Any, b: Any) -> None:
         """
         Laplace(mu, b)   （location mu, scale b > 0）
         """
@@ -173,7 +211,7 @@ class Laplace:
         self.b = b  # scale (>0)
         self.dim = self.mu.dim
 
-    def values(self, n=None):
+    def values(self, n: int | None = None) -> Tensor:
         if self._values is None:
             raise ValueError(
                 "Error: self.values is not initialized. Call sample() before accessing values."
@@ -182,21 +220,21 @@ class Laplace:
             raise ValueError(f"Error: Expected {n} samples, but got {len(self._values)}.")
         return self._values
 
-    def sample(self, n, detach=False):
+    def sample(self, n: int, detach: bool = False) -> Tensor | None:
         mv = self.mu.values(n)
         bv = self.b.values(n)
         if bv.device != mv.device:
             bv = bv.to(mv.device)
 
-        sampler = D.Laplace(mv, bv)
+        sampler = dist.Laplace(mv, bv)
         values = sampler.sample((1,))[0]  # shape: (n, dim)
 
         if detach:
             return values
-        else:
-            self._values = values
+        self._values = values
+        return None
 
-    def lp(self, values=None):
+    def lp(self, values: Tensor | None = None) -> Tensor:
         if values is None:
             values = self.values()
         n = len(values)
@@ -209,10 +247,10 @@ class Laplace:
         if bv.device != values.device:
             bv = bv.to(values.device)
 
-        sampler = D.Laplace(mv, bv)
+        sampler = dist.Laplace(mv, bv)
         return sampler.log_prob(values)
 
-    def check_support(self, values):
+    def check_support(self, values: Tensor) -> Tensor:
         return torch.ones_like(values, dtype=torch.bool, device=values.device)
 
 
@@ -221,7 +259,14 @@ class Exponential:
     Class for Exponential random variables.
     """
 
-    def __init__(self, name, rate):
+    _values: Tensor | None
+    name: str
+    parents: list[Any]
+    depth: int
+    rate: Any
+    dim: int
+
+    def __init__(self, name: str, rate: Any) -> None:
         self.name = name
         self.parents = [rate]
         self.depth = max([parent.depth for parent in self.parents]) + 1
@@ -229,7 +274,7 @@ class Exponential:
         self.rate = rate
         self.dim = self.rate.dim
 
-    def values(self, n=None):
+    def values(self, n: int | None = None) -> Tensor:
         if self._values is None:
             raise ValueError(
                 "Error: self.values is not initialized. Call sample() before accessing values."
@@ -238,24 +283,24 @@ class Exponential:
             raise ValueError(f"Error: Expected {n} samples, but got {len(self._values)}.")
         return self._values
 
-    def sample(self, n, detach=False):
+    def sample(self, n: int, detach: bool = False) -> Tensor | None:
         rv = self.rate.values(n)
-        sampler = D.Exponential(rv)
+        sampler = dist.Exponential(rv)
         values = sampler.sample((1,))[0]  # shape: (n, dim)
         if detach:
             return values
-        else:
-            self._values = values
+        self._values = values
+        return None
 
-    def lp(self, values=None):
+    def lp(self, values: Tensor | None = None) -> Tensor:
         if values is None:
             values = self.values()
         n = len(values)
         rv = self.rate.values(n)
         if rv.device != values.device:
             rv = rv.to(values.device)
-        sampler = D.Exponential(rv)
+        sampler = dist.Exponential(rv)
         return sampler.log_prob(values)
 
-    def check_support(self, values):
+    def check_support(self, values: Tensor) -> Tensor:
         return values >= 0

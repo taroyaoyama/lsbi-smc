@@ -1,5 +1,10 @@
+from __future__ import annotations
+
+from typing import Any
+
 import numpy as np
 import torch
+from torch import Tensor
 
 
 class HierarchicalPrior:
@@ -7,7 +12,13 @@ class HierarchicalPrior:
     Class for flexible hierarchical prior constructed from directed acyclic graph.
     """
 
-    def __init__(self, variables):
+    variables: list[Any]
+    names: list[str]
+    index: list[str]
+    dim: int
+    n_current: int | None
+
+    def __init__(self, variables: list[Any]) -> None:
         # sort variables
         depths = np.array([var.depth for var in variables])
         self.variables = list(np.array(variables)[np.argsort(depths, kind="stable")])
@@ -28,41 +39,42 @@ class HierarchicalPrior:
         # current size of values.
         self.n_current = None
 
-    def collect(self):
+    def collect(self) -> Tensor:
         theta = [variable.values() for variable in self.variables]
         return torch.cat(theta, dim=-1)
 
-    def assign(self, theta):
+    def assign(self, theta: Tensor) -> None:
         n = len(theta)
         self.n_current = n
         for variable in self.variables:
             variable._values = theta[:, np.array(self.index) == variable.name]
 
-    def lp(self, values=None):
+    def lp(self, values: Tensor | None = None) -> Tensor:
         if values is None:
             values = self.collect()
         else:
             self.assign(values)
+        assert self.n_current is not None
         lp = torch.zeros((self.n_current, 1), device=values.device, dtype=values.dtype)
         for variable in self.variables:
             lp += variable.lp(values[:, np.array(self.index) == variable.name])
         return lp[:, 0]
 
-    def sample(self, n=1):
+    def sample(self, n: int = 1) -> Tensor:
         for variable in self.variables:
             variable.sample(n)
         self.n_current = n
         return self.collect()
 
-    def to_dict(self, values=None):
+    def to_dict(self, values: Tensor | None = None) -> dict[str, Tensor]:
         if values is None:
             values = self.collect()
-        dic = {}
+        dic: dict[str, Tensor] = {}
         for variable in self.variables:
             dic[variable.name] = values[:, np.array(self.index) == variable.name]
         return dic
 
-    def check_support(self, values):
+    def check_support(self, values: Tensor) -> Tensor:
         support_checks = []
         for variable in self.variables:
             check_result = variable.check_support(values[:, np.array(self.index) == variable.name])

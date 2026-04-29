@@ -1,15 +1,23 @@
+from __future__ import annotations
+
+from typing import Literal, overload
+
 import matplotlib.pyplot as plt
 import numpy as np
+import numpy.typing as npt
 import torch
 import torch.nn as nn
+from matplotlib.figure import Figure
+from torch import Tensor
 from torch.nn.utils import spectral_norm
+from torch.utils.data import DataLoader
 
 # ----------------
 # util
 # ----------------
 
 
-def reparameterization(mean, var, device):
+def reparameterization(mean: Tensor, var: Tensor, device: torch.device) -> Tensor:
     epsilon = torch.randn_like(mean)
     return mean + torch.sqrt(var) * epsilon
 
@@ -19,20 +27,20 @@ def reparameterization(mean, var, device):
 # --------------------
 
 
-def gauss_gauss_kl(mean1, var1, mean2, var2):
+def gauss_gauss_kl(mean1: Tensor, var1: Tensor, mean2: Tensor, var2: Tensor) -> Tensor:
     eps = 1e-8
     _var2 = var2 + eps
     _kl = torch.log(_var2) - torch.log(var1 + eps) + (var1 + (mean1 - mean2) ** 2) / _var2 - 1
     return 0.5 * torch.sum(_kl, dim=1).mean()
 
 
-def gauss_unitgauss_kl(mean, var):
+def gauss_unitgauss_kl(mean: Tensor, var: Tensor) -> Tensor:
     eps = 1e-8
     _kl = -0.5 * (1 + torch.log(var + eps) - mean**2 - var)
     return torch.sum(_kl, dim=1).mean()
 
 
-def rec_loss_norm4D(x, mean, var):
+def rec_loss_norm_4d(x: Tensor, mean: Tensor, var: Tensor) -> Tensor:
     return -torch.mean(
         torch.sum(
             -0.5 * ((x - mean) ** 2 / var + torch.log(var) + torch.log(torch.tensor(2 * torch.pi))),
@@ -41,7 +49,7 @@ def rec_loss_norm4D(x, mean, var):
     )
 
 
-def rec_loss_norm2D(x, mean, var):
+def rec_loss_norm_2d(x: Tensor, mean: Tensor, var: Tensor) -> Tensor:
     return -torch.mean(
         torch.sum(
             -0.5 * ((x - mean) ** 2 / var + torch.log(var) + torch.log(torch.tensor(2 * torch.pi))),
@@ -55,9 +63,9 @@ def rec_loss_norm2D(x, mean, var):
 # --------------------
 
 
-class resblock_enc(nn.Module):
-    def __init__(self, in_channels, out_channels, pooling_size):
-        super(resblock_enc, self).__init__()
+class ResblockEnc(nn.Module):
+    def __init__(self, in_channels: int, out_channels: int, pooling_size: tuple[int, int]) -> None:
+        super().__init__()
         self.conv1 = nn.Conv2d(
             in_channels, out_channels, kernel_size=(1, 3), stride=(1, 1), padding=(0, 1), bias=True
         )
@@ -87,24 +95,21 @@ class resblock_enc(nn.Module):
 
         self._initialize_weights()
 
-    def forward(self, x):
+    def forward(self, x: Tensor) -> Tensor:
         out_x = self.model(x) + self.bypass(x)
         return out_x
 
-    def _initialize_weights(self):
+    def _initialize_weights(self) -> None:
         for m in self.modules():
-            if isinstance(m, nn.Conv2d):
+            if isinstance(m, (nn.Conv2d, nn.Linear)):
                 nn.init.xavier_uniform_(m.weight)
                 if m.bias is not None:
                     nn.init.zeros_(m.bias)
-            elif isinstance(m, nn.Linear):
-                nn.init.xavier_uniform_(m.weight)
-                nn.init.zeros_(m.bias)
 
 
-class first_resblock_enc(nn.Module):
-    def __init__(self, in_channels, out_channels, pooling_size):
-        super(first_resblock_enc, self).__init__()
+class FirstResblockEnc(nn.Module):
+    def __init__(self, in_channels: int, out_channels: int, pooling_size: tuple[int, int]) -> None:
+        super().__init__()
         self.conv1 = nn.Conv2d(
             in_channels, out_channels, kernel_size=(1, 3), stride=(1, 1), padding=(0, 1), bias=True
         )
@@ -134,24 +139,21 @@ class first_resblock_enc(nn.Module):
 
         self._initialize_weights()
 
-    def forward(self, x):
+    def forward(self, x: Tensor) -> Tensor:
         out_x = self.model(x) + self.bypass(x)
         return out_x
 
-    def _initialize_weights(self):
+    def _initialize_weights(self) -> None:
         for m in self.modules():
-            if isinstance(m, nn.Conv2d):
+            if isinstance(m, (nn.Conv2d, nn.Linear)):
                 nn.init.xavier_uniform_(m.weight)
                 if m.bias is not None:
                     nn.init.zeros_(m.bias)
-            elif isinstance(m, nn.Linear):
-                nn.init.xavier_uniform_(m.weight)
-                nn.init.zeros_(m.bias)
 
 
-class resblock_enc_small(nn.Module):
-    def __init__(self, in_dim, out_dim):
-        super(resblock_enc_small, self).__init__()
+class ResblockEncSmall(nn.Module):
+    def __init__(self, in_dim: int, out_dim: int) -> None:
+        super().__init__()
         self.fc1 = nn.Linear(in_dim, out_dim)
         self.fc2 = nn.Linear(out_dim, out_dim)
         self.activation = nn.LeakyReLU(0.2, inplace=True)
@@ -160,7 +162,7 @@ class resblock_enc_small(nn.Module):
         # Ensure dimensions match for bypass addition
         self.adjust_dim = nn.Linear(in_dim, out_dim) if in_dim != out_dim else nn.Identity()
 
-    def forward(self, x):
+    def forward(self, x: Tensor) -> Tensor:
         out = self.fc1(x)
         out = self.activation(out)
         out = self.fc2(out)
@@ -169,9 +171,14 @@ class resblock_enc_small(nn.Module):
         return self.activation(out + bypass_out)
 
 
-class resblock_dec(nn.Module):
-    def __init__(self, in_channels, out_channels, up_sample):
-        super(resblock_dec, self).__init__()
+class ResblockDec(nn.Module):
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        up_sample: tuple[int, int] | float,
+    ) -> None:
+        super().__init__()
         self.conv1 = nn.Conv2d(
             in_channels, out_channels, kernel_size=(1, 3), stride=(1, 1), padding=(0, 1), bias=True
         )
@@ -204,19 +211,16 @@ class resblock_dec(nn.Module):
 
         self._initialize_weights()
 
-    def forward(self, x):
+    def forward(self, x: Tensor) -> Tensor:
         out_x = self.model(x) + self.bypass(x)
         return out_x
 
-    def _initialize_weights(self):
+    def _initialize_weights(self) -> None:
         for m in self.modules():
-            if isinstance(m, nn.Conv2d):
+            if isinstance(m, (nn.Conv2d, nn.Linear)):
                 nn.init.xavier_uniform_(m.weight)
                 if m.bias is not None:
                     nn.init.zeros_(m.bias)
-            elif isinstance(m, nn.Linear):
-                nn.init.xavier_uniform_(m.weight)
-                nn.init.zeros_(m.bias)
 
 
 # --------------------
@@ -225,17 +229,19 @@ class resblock_dec(nn.Module):
 
 
 class Encoder(nn.Module):
-    def __init__(self, z_dim, ch, size, depth):
-        super(Encoder, self).__init__()
+    device: torch.device
+
+    def __init__(self, z_dim: int, ch: int, size: int, depth: int) -> None:
+        super().__init__()
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.size = size
         self.depth = depth
 
-        self.enc_block_1 = first_resblock_enc(ch, ch * 2, pooling_size=(1, 2))  # 1024 -> 512
-        self.enc_block_2 = resblock_enc(ch * 2, ch * 4, pooling_size=(1, 2))  #  512 -> 256
-        self.enc_block_3 = resblock_enc(ch * 4, ch * 8, pooling_size=(1, 2))  #  256 -> 128
-        self.enc_block_4 = resblock_enc(ch * 8, ch * 16, pooling_size=(1, 2))  #  128 ->  64
-        self.enc_block_5 = resblock_enc(ch * 16, ch * 32, pooling_size=(1, 2))  #   64 ->  32
+        self.enc_block_1 = FirstResblockEnc(ch, ch * 2, pooling_size=(1, 2))  # 1024 -> 512
+        self.enc_block_2 = ResblockEnc(ch * 2, ch * 4, pooling_size=(1, 2))  #  512 -> 256
+        self.enc_block_3 = ResblockEnc(ch * 4, ch * 8, pooling_size=(1, 2))  #  256 -> 128
+        self.enc_block_4 = ResblockEnc(ch * 8, ch * 16, pooling_size=(1, 2))  #  128 ->  64
+        self.enc_block_5 = ResblockEnc(ch * 16, ch * 32, pooling_size=(1, 2))  #   64 ->  32
 
         self.blocks = nn.Sequential(
             self.enc_block_1,
@@ -266,7 +272,7 @@ class Encoder(nn.Module):
 
         self._initialize_weights()
 
-    def forward(self, x):
+    def forward(self, x: Tensor) -> tuple[Tensor, Tensor, Tensor]:
         encoded = self.blocks(x)
         encoded = self.fc(encoded.view(-1, encoded.shape[1] * encoded.shape[2] * encoded.shape[3]))
         mu = self.mu(encoded)
@@ -274,34 +280,33 @@ class Encoder(nn.Module):
         z = reparameterization(mu, var, self.device)
         return z, mu, var
 
-    def _initialize_weights(self):
+    def _initialize_weights(self) -> None:
         for m in self.modules():
-            if isinstance(m, nn.Conv2d):
+            if isinstance(m, (nn.Conv2d, nn.Linear)):
                 nn.init.xavier_uniform_(m.weight)
                 if m.bias is not None:
                     nn.init.zeros_(m.bias)
-            elif isinstance(m, nn.Linear):
-                nn.init.xavier_uniform_(m.weight)
-                nn.init.zeros_(m.bias)
 
 
-class Encoder_w(nn.Module):
-    def __init__(self, z_dim, n_label):
-        super(Encoder_w, self).__init__()
+class EncoderW(nn.Module):
+    device: torch.device
+
+    def __init__(self, z_dim: int, n_label: int) -> None:
+        super().__init__()
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         # Residual blocks for small dimensions
-        self.res_block1 = resblock_enc_small(n_label, z_dim)
-        self.res_block2 = resblock_enc_small(z_dim, z_dim * 2)
-        self.res_block3 = resblock_enc_small(z_dim * 2, z_dim * 2)
-        self.res_block4 = resblock_enc_small(z_dim * 2, z_dim)
-        self.res_block5 = resblock_enc_small(z_dim, z_dim)
+        self.res_block1 = ResblockEncSmall(n_label, z_dim)
+        self.res_block2 = ResblockEncSmall(z_dim, z_dim * 2)
+        self.res_block3 = ResblockEncSmall(z_dim * 2, z_dim * 2)
+        self.res_block4 = ResblockEncSmall(z_dim * 2, z_dim)
+        self.res_block5 = ResblockEncSmall(z_dim, z_dim)
 
         # Output layers for mean and variance
         self.mu = nn.Sequential(nn.Linear(z_dim, z_dim))
         self.var = nn.Sequential(nn.Linear(z_dim, z_dim), nn.Softplus())
 
-    def forward(self, w):
+    def forward(self, w: Tensor) -> tuple[Tensor, Tensor, Tensor]:
         out = self.res_block1(w)
         out = self.res_block2(out)
         out = self.res_block3(out)
@@ -314,8 +319,8 @@ class Encoder_w(nn.Module):
 
 
 class Decoder(nn.Module):
-    def __init__(self, z_dim, ch, size, depth):
-        super(Decoder, self).__init__()
+    def __init__(self, z_dim: int, ch: int, size: int, depth: int) -> None:
+        super().__init__()
         self.ch = ch
         self.size = size
         self.depth = depth
@@ -335,10 +340,10 @@ class Decoder(nn.Module):
             nn.LeakyReLU(0.2, inplace=True),
         )
 
-        self.dec_block_3 = resblock_dec(ch * 32, ch * 16, up_sample=(1, 2))  #  32 ->  64
-        self.dec_block_4 = resblock_dec(ch * 16, ch * 8, up_sample=(1, 2))  #  64 -> 128
-        self.dec_block_5 = resblock_dec(ch * 8, ch * 4, up_sample=(1, 2))  # 128 -> 256
-        self.dec_block_6 = resblock_dec(ch * 4, ch * 2, up_sample=(1, 2))  # 256 -> 512
+        self.dec_block_3 = ResblockDec(ch * 32, ch * 16, up_sample=(1, 2))  #  32 ->  64
+        self.dec_block_4 = ResblockDec(ch * 16, ch * 8, up_sample=(1, 2))  #  64 -> 128
+        self.dec_block_5 = ResblockDec(ch * 8, ch * 4, up_sample=(1, 2))  # 128 -> 256
+        self.dec_block_6 = ResblockDec(ch * 4, ch * 2, up_sample=(1, 2))  # 256 -> 512
 
         self.blocks = nn.Sequential(
             self.dec_block_3,
@@ -347,30 +352,27 @@ class Decoder(nn.Module):
             self.dec_block_6,
         )
 
-        self.decoder_mu = nn.Sequential(resblock_dec(ch * 2, ch, up_sample=(1, 2)))  # 512 -> 1024
+        self.decoder_mu = nn.Sequential(ResblockDec(ch * 2, ch, up_sample=(1, 2)))  # 512 -> 1024
         self.decoder_var = nn.Sequential(
-            resblock_dec(ch * 2, ch, up_sample=(1, 2)),  # 512 -> 1024
+            ResblockDec(ch * 2, ch, up_sample=(1, 2)),  # 512 -> 1024
             nn.Softplus(),
         )
 
         self._initialize_weights()
 
-    def forward(self, z):
+    def forward(self, z: Tensor) -> tuple[Tensor, Tensor]:
         xx = self.fc(z)
         decoded = self.blocks(xx.view(-1, self.ch * 2**5, self.depth, int(self.size / 2**5)))
         mu = self.decoder_mu(decoded)
         var = self.decoder_var(decoded)
         return mu, var
 
-    def _initialize_weights(self):
+    def _initialize_weights(self) -> None:
         for m in self.modules():
-            if isinstance(m, nn.Conv2d):
+            if isinstance(m, (nn.Conv2d, nn.Linear)):
                 nn.init.xavier_uniform_(m.weight)
                 if m.bias is not None:
                     nn.init.zeros_(m.bias)
-            elif isinstance(m, nn.Linear):
-                nn.init.xavier_uniform_(m.weight)
-                nn.init.zeros_(m.bias)
 
 
 # --------------------
@@ -379,55 +381,93 @@ class Decoder(nn.Module):
 
 
 class MVAE(nn.Module):
-    def __init__(self, z_dim, ch, size, nlabel, depth):
+    def __init__(self, z_dim: int, ch: int, size: int, nlabel: int, depth: int) -> None:
         super().__init__()
         self.enc_x = Encoder(z_dim, ch, size, depth)
-        self.enc_w = Encoder_w(z_dim, nlabel)
+        self.enc_w = EncoderW(z_dim, nlabel)
         self.dec = Decoder(z_dim, ch, size, depth)
 
-    def encode(self, x, w):
+    def encode(self, x: Tensor, w: Tensor) -> tuple[Tensor, Tensor, Tensor, Tensor, Tensor, Tensor]:
         z1, mu1, var1 = self.enc_x(x)
         z2, mu2, var2 = self.enc_w(w)
         return z1, mu1, var1, z2, mu2, var2
 
-    def decode(self, z1, z2):
+    def decode(self, z1: Tensor, z2: Tensor) -> tuple[Tensor, Tensor, Tensor, Tensor]:
         x_mu1, x_var1 = self.dec(z1)
         x_mu2, x_var2 = self.dec(z2)
         return x_mu1, x_var1, x_mu2, x_var2
 
-    def forward(self, x, w, return_loss=False, alp1=1.0, alp2=10.0, alp3=10.0):
+    @overload
+    def forward(
+        self,
+        x: Tensor,
+        w: Tensor,
+        return_loss: Literal[True],
+        alp1: float = ...,
+        alp2: float = ...,
+        alp3: float = ...,
+    ) -> tuple[Tensor, Tensor, Tensor]: ...
+
+    @overload
+    def forward(
+        self,
+        x: Tensor,
+        w: Tensor,
+        return_loss: Literal[False] = ...,
+        alp1: float = ...,
+        alp2: float = ...,
+        alp3: float = ...,
+    ) -> tuple[Tensor, Tensor, Tensor, Tensor]: ...
+
+    def forward(
+        self,
+        x: Tensor,
+        w: Tensor,
+        return_loss: bool = False,
+        alp1: float = 1.0,
+        alp2: float = 10.0,
+        alp3: float = 10.0,
+    ) -> tuple[Tensor, Tensor, Tensor] | tuple[Tensor, Tensor, Tensor, Tensor]:
         z1, mu1, var1, z2, mu2, var2 = self.encode(x, w)
         x_mu1, x_var1, x_mu2, x_var2 = self.decode(z1, z2)
 
         if return_loss:
             # KL terms
-            KL1 = gauss_unitgauss_kl(mu1, var1)
-            KL2 = gauss_unitgauss_kl(mu2, var2)
-            KL_x1x2 = gauss_gauss_kl(mu1, var1, mu2, var2)
-            KL_x2x1 = gauss_gauss_kl(mu2, var2, mu1, var1)
+            kl1 = gauss_unitgauss_kl(mu1, var1)
+            kl2 = gauss_unitgauss_kl(mu2, var2)
+            kl_x1x2 = gauss_gauss_kl(mu1, var1, mu2, var2)
+            kl_x2x1 = gauss_gauss_kl(mu2, var2, mu1, var1)
             # reconstruction terms
-            rec_xx = rec_loss_norm4D(x, x_mu1, x_var1)
-            rec_wx = rec_loss_norm4D(x, x_mu2, x_var2)
+            rec_xx = rec_loss_norm_4d(x, x_mu1, x_var1)
+            rec_wx = rec_loss_norm_4d(x, x_mu2, x_var2)
             # total loss
-            loss = KL1 + KL2 + alp1 * (KL_x1x2 + KL_x2x1) + alp2 * rec_xx + alp3 * rec_wx
-            return loss, (KL1 + KL2 + KL_x1x2 + KL_x2x1), (rec_xx + rec_wx)
+            loss = kl1 + kl2 + alp1 * (kl_x1x2 + kl_x2x1) + alp2 * rec_xx + alp3 * rec_wx
+            return loss, (kl1 + kl2 + kl_x1x2 + kl_x2x1), (rec_xx + rec_wx)
 
         return x_mu1, x_var1, x_mu2, x_var2
 
-    def loss(self, xo, xi, w, alp1=1.0, alp2=10.0, alp3=10.0):
+    def loss(
+        self,
+        xo: Tensor,
+        xi: Tensor,
+        w: Tensor,
+        alp1: float = 1.0,
+        alp2: float = 10.0,
+        alp3: float = 10.0,
+    ) -> tuple[Tensor, Tensor, Tensor]:
         z1, mu1, var1, z2, mu2, var2 = self.encode(xi, w)
         x_mu1, x_var1, x_mu2, x_var2 = self.decode(z1, z2)
         # KL terms
-        KL1 = gauss_unitgauss_kl(mu1, var1)
-        KL2 = gauss_unitgauss_kl(mu2, var2)
-        KL_x1x2 = gauss_gauss_kl(mu1, var1, mu2, var2)
-        KL_x2x1 = gauss_gauss_kl(mu2, var2, mu1, var1)
+        kl1 = gauss_unitgauss_kl(mu1, var1)
+        kl2 = gauss_unitgauss_kl(mu2, var2)
+        kl_x1x2 = gauss_gauss_kl(mu1, var1, mu2, var2)
+        kl_x2x1 = gauss_gauss_kl(mu2, var2, mu1, var1)
         # reconstruction terms
-        rec_xx = rec_loss_norm4D(xo, x_mu1, x_var1)
-        rec_wx = rec_loss_norm4D(xo, x_mu2, x_var2)
+        rec_xx = rec_loss_norm_4d(xo, x_mu1, x_var1)
+        rec_wx = rec_loss_norm_4d(xo, x_mu2, x_var2)
         # total loss
-        loss = KL1 + KL2 + alp1 * (KL_x1x2 + KL_x2x1) + alp2 * rec_xx + alp3 * rec_wx
-        return loss, (KL1 + KL2 + KL_x1x2 + KL_x2x1), (rec_xx + rec_wx)
+        loss = kl1 + kl2 + alp1 * (kl_x1x2 + kl_x2x1) + alp2 * rec_xx + alp3 * rec_wx
+        return loss, (kl1 + kl2 + kl_x1x2 + kl_x2x1), (rec_xx + rec_wx)
 
 
 # --------------------
@@ -436,20 +476,28 @@ class MVAE(nn.Module):
 
 
 class VAE(nn.Module):
-    def __init__(self, z_dim, ch, size, depth):
+    def __init__(self, z_dim: int, ch: int, size: int, depth: int) -> None:
         super().__init__()
         self.enc = Encoder(z_dim, ch, size, depth)
         self.dec = Decoder(z_dim, ch, size, depth)
 
-    def encode(self, x):
+    def encode(self, x: Tensor) -> tuple[Tensor, Tensor, Tensor]:
         z, mu, var = self.enc(x)
         return z, mu, var
 
-    def decode(self, z):
+    def decode(self, z: Tensor) -> tuple[Tensor, Tensor]:
         x_mu, x_var = self.dec(z)
         return x_mu, x_var
 
-    def forward(self, x, return_loss=False):
+    @overload
+    def forward(self, x: Tensor, return_loss: Literal[True]) -> tuple[Tensor, Tensor, Tensor]: ...
+
+    @overload
+    def forward(self, x: Tensor, return_loss: Literal[False] = ...) -> tuple[Tensor, Tensor]: ...
+
+    def forward(
+        self, x: Tensor, return_loss: bool = False
+    ) -> tuple[Tensor, Tensor, Tensor] | tuple[Tensor, Tensor]:
         # encode
         z, mu, var = self.encode(x)
         # decode
@@ -457,13 +505,13 @@ class VAE(nn.Module):
 
         if return_loss:
             # KL terms
-            KL = gauss_unitgauss_kl(mu, var)
+            kl = gauss_unitgauss_kl(mu, var)
             # reconstruction terms
-            rec = rec_loss_norm4D(x, x_mu, x_var)
+            rec = rec_loss_norm_4d(x, x_mu, x_var)
             # total loss
-            loss = KL + 10 * rec
+            loss = kl + 10 * rec
             # return: loss, (sum of KL), (sum of rec)
-            return loss, KL, rec
+            return loss, kl, rec
 
         return x_mu, x_var
 
@@ -473,14 +521,19 @@ class VAE(nn.Module):
 # --------------------
 
 
-def plot_frf(ids, chs, model, loader, dlf=0.005):
+def plot_frf(
+    ids: list[int],
+    chs: list[int],
+    model: MVAE,
+    loader: DataLoader,  # type: ignore[type-arg]
+    dlf: float = 0.005,
+) -> tuple[Figure, npt.NDArray[np.object_]]:
     device = next(model.parameters()).device
     # read data
-    for x, y, yn in loader:
-        x = x.to(device)
-        y = y.to(device)
-        yn = yn.to(device)
-        break
+    x, y, yn = next(iter(loader))
+    x = x.to(device)
+    y = y.to(device)
+    yn = yn.to(device)
     # prediction
     model.eval()
     with torch.no_grad():
