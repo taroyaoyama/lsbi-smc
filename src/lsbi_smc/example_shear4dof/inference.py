@@ -1,5 +1,3 @@
-import random
-
 import numpy as np
 import torch
 import torch.distributions as D
@@ -15,17 +13,6 @@ from lsbi_smc.smc.prior import HierarchicalPrior
 from lsbi_smc.smc.proposal import ChingAndChenProposal
 from lsbi_smc.smc.smc import SMC
 from lsbi_smc.smc.variables import Constant, Normal
-
-
-def set_seed(seed: int):
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
-
 
 # range of parameters
 LLIM, ULIM = 0.33, 3.00
@@ -46,8 +33,6 @@ model.eval()
 # -------------------------
 # synthetic observation
 # -------------------------
-
-LLIM, ULIM = 0.33, 3.00
 
 
 # simulator
@@ -73,7 +58,6 @@ y_obs = (y_obs - y_mn) / y_sd
 y_obs = y_obs.astype(np.float32)
 
 # to torch
-x_obs_tc = torch.from_numpy(x_obs).to(device)
 y_obs_tc = torch.from_numpy(y_obs).to(device)
 
 # --------------------
@@ -95,8 +79,6 @@ class LogLikelihood(MVAEBasedLogLikelihood):
         self.n_call += len(theta)
         return super().__call__(theta, alp=1.0, tau=0.00)
 
-
-loglikelihood = LogLikelihood(model.enc_w, model.enc_x, y_obs_tc, device)
 
 # ---------------------
 # Set prior

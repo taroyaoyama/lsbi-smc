@@ -54,8 +54,12 @@ model: MVAE = torch.compile(_mvae)  # type: ignore[assignment]
 # Adam optimizer
 optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
 
+# AMP
+use_amp = device.type == "cuda"
+scaler = torch.amp.GradScaler("cuda", enabled=use_amp)  # type: ignore[attr-defined]
+
 # training
-epochs, epochs_for_save = 1000, 100
+epochs = 1000
 best_vl_loss = float("inf")
 patience = 20
 epochs_no_improve = 0
@@ -70,10 +74,12 @@ for epoch in range(epochs):
         x = x.to(device)
         y = y.to(device)
         yn = yn.to(device)
-        optimizer.zero_grad()
-        trl, kll, rcl = model.loss(yn, y, x, alp1=5.0)
-        trl.backward()
-        optimizer.step()
+        optimizer.zero_grad(set_to_none=True)
+        with torch.autocast(device_type=device.type, enabled=use_amp):
+            trl, kll, rcl = model.loss(yn, y, x, alp1=5.0)
+        scaler.scale(trl).backward()
+        scaler.step(optimizer)
+        scaler.update()
 
         # summing up loss values
         tr_loss += trl.item() * y.size(0)
@@ -87,7 +93,8 @@ for epoch in range(epochs):
             x = x.to(device)
             y = y.to(device)
             yn = yn.to(device)
-            vll, _, _ = model.loss(yn, y, x, alp1=5.0)
+            with torch.autocast(device_type=device.type, enabled=use_amp):
+                vll, _, _ = model.loss(yn, y, x, alp1=5.0)
 
             # summing up loss values
             vl_loss += vll.item() * y.size(0)
