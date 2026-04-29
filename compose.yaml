@@ -1,9 +1,41 @@
 services:
-  claude:
+  dev-container:
     build:
       context: .
-      dockerfile: ./Dockerfile.claude
+      dockerfile: ./infra/docker/development/devcontainer/Dockerfile
+      args:
+        TZ: Asia/Tokyo
+        CLAUDE_CODE_VERSION: "latest"
+        GIT_DELTA_VERSION: "0.18.2"
+        ZSH_IN_DOCKER_VERSION: "1.2.0"
+        REPO_NAME: "lsbi-smc"
     volumes:
-      - ./:/home/claude/workspace
-    working_dir: /home/claude/workspace
-    tty: true
+      - .:/workspace/lsbi-smc:cached
+      # DevContainer専用のボリューム
+      - dev-venv:/workspace/lsbi-smc/.venv
+      # - dev-node-modules:/workspace/lsbi-smc/frontend/node_modules
+      # 公式設定：履歴と設定の永続化
+      - claude-code-bashhistory:/commandhistory
+      - claude-code-config:/home/node/.claude
+    environment:
+      - FIREWALL_ENABLED=false # false に変えるとファイアウォールをスキップ
+      - NODE_OPTIONS=--max-old-space-size=4096
+      - CLAUDE_CONFIG_DIR=/home/node/.claude
+      - POWERLEVEL9K_DISABLE_GITSTATUS=true
+      - PROMPT_COMMAND=history -a
+      - HISTFILE=/commandhistory/.bash_history
+      - UV_ENV_FILE=/workspace/lsbi-smc/.env # uvが読み込む環境変数ファイル、本番シークレットはおかない
+    # Claude Code用の権限
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+      - SYSLOG
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    # CMD は Dockerfile で sleep infinity を指定済み
+
+volumes:
+  dev-venv:
+  # dev-node-modules:
+  claude-code-bashhistory:
+  claude-code-config:

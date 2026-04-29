@@ -1,0 +1,170 @@
+{
+  "name": "Monorepo-Dev-Claude",
+  "dockerComposeFile": ["../compose.yaml"],
+  "service": "dev-container",
+  "workspaceFolder": "/workspace/lsbi-smc",
+  "shutdownAction": "none",
+  "runServices": [],
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "anthropic.claude-code",
+        "vscjava.migrate-java-to-azure",
+        "sohamkamani.code-eol",
+        "eamodio.gitlens",
+        "ms-azuretools.vscode-docker",
+        "docker.docker",
+        "esbenp.prettier-vscode",
+        "dbaeumer.vscode-eslint",
+        "Vue.volar",
+        "ms-python.python",
+        "charliermarsh.ruff",
+        "FastAPILabs.fastapi-vscode",
+        "hashicorp.terraform",
+        "redhat.vscode-yaml",
+        "ms-vscode.makefile-tools",
+        "yzhang.markdown-all-in-one",
+        "bierner.markdown-mermaid"
+      ],
+      "settings": {
+        "claudeCode.respectGitIgnore": true,
+        "claudeCode.useCtrlEnterToSend": true,
+        "claudeCode.usePythonEnvironment": true,
+        // "editor.codeActionsOnSave": {
+        //   "source.fixAll.eslint": "explicit"
+        // },
+        "editor.defaultFormatter": "esbenp.prettier-vscode",
+        "editor.formatOnSave": true,
+        "editor.tabSize": 2,
+        "editor.wordWrap": "on",
+        "files.associations": {
+          "*.blade.php": "blade"
+        },
+        "files.autoSave": "onFocusChange",
+        "files.eol": "\n",
+        "terminal.integrated.defaultProfile.linux": "zsh",
+        "terminal.integrated.profiles.linux": {
+          "bash": {
+            "path": "bash",
+            "icon": "terminal-bash"
+          },
+          "zsh": {
+            "path": "zsh"
+          }
+        },
+        // each language specific settings
+        // "bladeFormatter.format.enabled": true,
+        // "intelephense.format.braces": "per",
+        // "intelephense.format.enable": true,
+        // "java.format.enabled": true,
+        // "java.codeGeneration.generateComments": true,
+        "prettier.printWidth": 100,
+        "prettier.tabWidth": 2,
+        "python.analysis.languageServerMode": "default",
+        "python.analysis.typeCheckingMode": "standard",
+        "python.defaultInterpreterPath": "/workspace/lsbi-smc/.venv/bin/python",
+        "python.terminal.activateEnvInCurrentTerminal": false,
+        "python.terminal.activateEnvironment": false,
+        "ruff.configurationPreference": "filesystemFirst",
+        "yaml.format.enable": true,
+        // "[blade]": {
+        //   "editor.defaultFormatter": "shufo.vscode-blade-formatter",
+        //   "files.autoSave": "onFocusChange",
+        //   "editor.formatOnSave": false
+        // },
+        "[c]": {
+          "files.autoSave": "onFocusChange",
+          "editor.formatOnSave": true
+        },
+        "[css]": {
+          "editor.defaultFormatter": "esbenp.prettier-vscode",
+          "files.autoSave": "onFocusChange",
+          "editor.formatOnSave": true
+        },
+        "[Dockerfile]": {
+          "editor.defaultFormatter": "esbenp.prettier-vscode",
+          "files.autoSave": "onFocusChange",
+          "editor.formatOnSave": true
+        },
+        "[html]": {
+          "editor.defaultFormatter": "esbenp.prettier-vscode",
+          "files.autoSave": "onFocusChange",
+          "editor.formatOnSave": true
+        },
+        "[java]": {
+          "files.autoSave": "onFocusChange",
+          "editor.formatOnSave": true
+        },
+        "[javascript]": {
+          "editor.defaultFormatter": "esbenp.prettier-vscode",
+          "files.autoSave": "onFocusChange",
+          "editor.formatOnSave": true
+        },
+        "[json][jsonc]": {
+          "editor.defaultFormatter": "esbenp.prettier-vscode",
+          "files.autoSave": "onFocusChange",
+          "editor.formatOnSave": true
+        },
+        "[markdown]": {
+          "editor.defaultFormatter": "yzhang.markdown-all-in-one",
+          "files.autoSave": "onFocusChange",
+          "editor.formatOnSave": true
+        },
+        // "[php]": {
+        //   "editor.tabSize": 4,
+        //   "editor.defaultFormatter": "bmewburn.vscode-intelephense-client",
+        //   "files.autoSave": "onFocusChange",
+        //   "editor.formatOnSave": true
+        // },
+        "[python]": {
+          "editor.codeActionsOnSave": {
+            "source.fixAll": "never",
+            "source.organizeImports": "never"
+          },
+          "editor.defaultFormatter": "charliermarsh.ruff",
+          "editor.formatOnSave": true,
+          "files.autoSave": "onFocusChange"
+        },
+        "[terraform]": {
+          "editor.defaultFormatter": "hashicorp.terraform",
+          "files.autoSave": "onFocusChange",
+          "editor.formatOnSave": true,
+          "editor.formatOnSaveMode": "file"
+        },
+        "[terraform-vars]": {
+          "editor.defaultFormatter": "hashicorp.terraform",
+          "files.autoSave": "onFocusChange",
+          "editor.formatOnSave": true,
+          "editor.formatOnSaveMode": "file"
+        },
+        "[typescript]": {
+          "editor.defaultFormatter": "esbenp.prettier-vscode",
+          "files.autoSave": "onFocusChange",
+          "editor.formatOnSave": true
+        },
+        "[vue]": {
+          "editor.defaultFormatter": "esbenp.prettier-vscode",
+          "files.autoSave": "onFocusChange",
+          "editor.formatOnSave": true
+        },
+        "[yml][yaml]": {
+          "editor.defaultFormatter": "redhat.vscode-yaml",
+          "files.autoSave": "onFocusChange",
+          "editor.formatOnSave": true
+        }
+      }
+    }
+  },
+  // "containerEnv": {
+  //   "NODE_OPTIONS": "--max-old-space-size=4096",
+  //   "CLAUDE_CONFIG_DIR": "/home/node/.claude",
+  //   "POWERLEVEL9K_DISABLE_GITSTATUS": "true",
+  //   "PROMPT_COMMAND": "history -a",
+  //   "HISTFILE": "/commandhistory/.bash_history"
+  // },
+  "remoteUser": "node",
+  //   "postCreateCommand": "bash .devcontainer/scripts/init-volumes.sh",
+  // "postStartCommand": "sudo /usr/local/bin/init-firewall.sh",
+  "postAttachCommand": "sudo /usr/local/bin/fix-venv-permissions.sh && /usr/local/bin/background-sync.sh"
+  // "waitFor": "postStartCommand"
+}

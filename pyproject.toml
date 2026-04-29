@@ -11,3 +11,37 @@ dependencies = [
     "scipy>=1.17.1",
     "torch>=2.11.0",
 ]
+
+[build-system]
+requires = ["uv_build>=0.11.7,<0.12"]
+build-backend = "uv_build"
+
+
+[dependency-groups]
+dev = [
+    "ruff>=0.11",
+]
+
+[tool.uv]
+default-groups = ["dev"]
+exclude-newer = "1 week"
+managed = true
+package = true
+
+[tool.uv.build-backend]
+module-name = "lsbi_smc"
+module-root = "src"
+
+[tool.ruff]
+line-length = 100
+indent-width = 4
+
+[tool.ruff.format]
+indent-style = "space"
+line-ending = "lf"
+quote-style = "double"
+skip-magic-trailing-comma = false
+
+[tool.ruff.lint]
+select = ["E", "F", "UP", "B", "SIM", "I", "N", "A", "Q"]
+ignore = ["A003", "Q003"]
