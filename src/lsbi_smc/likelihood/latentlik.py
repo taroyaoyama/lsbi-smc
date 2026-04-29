@@ -73,7 +73,7 @@ class MVAEBasedLogLikelihood:
         self.vr_obs = vr_obs
 
     @torch.no_grad()
-    def __call__(self, theta: Tensor, alp: float, tau: float) -> Tensor:
+    def __call__(self, theta: Tensor, alp: float = 1.0, tau: float = 0.0) -> Tensor:
         theta = theta.to(self.device)
         _, mu_sim, vr_sim = self.enc_w(theta)
         return latent_space_loglik(self.mu_obs, self.vr_obs, mu_sim, vr_sim, alp=alp, tau=tau)

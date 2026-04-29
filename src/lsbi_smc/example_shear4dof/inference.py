@@ -86,7 +86,7 @@ class LogLikelihood(MVAEBasedLogLikelihood):
         super().__init__(enc_w, enc_x, obs, device)
         self.n_call = 0
 
-    def __call__(self, theta: Tensor) -> Tensor:  # type: ignore[override]
+    def __call__(self, theta: Tensor, alp: float = 1.0, tau: float = 0.00) -> Tensor:
         theta = stdnorm.cdf(theta)
         self.n_call += len(theta)
         return super().__call__(theta, alp=1.0, tau=0.00)

@@ -1,10 +1,12 @@
 from __future__ import annotations
 
-from typing import Any
+from collections.abc import Sequence
 
 import numpy as np
 import torch
 from torch import Tensor
+
+from lsbi_smc.smc.variables import DistVar
 
 
 class HierarchicalPrior:
@@ -12,16 +14,17 @@ class HierarchicalPrior:
     Class for flexible hierarchical prior constructed from directed acyclic graph.
     """
 
-    variables: list[Any]
+    variables: list[DistVar]
     names: list[str]
     index: list[str]
     dim: int
     n_current: int | None
 
-    def __init__(self, variables: list[Any]) -> None:
-        # sort variables
+    def __init__(self, variables: Sequence[DistVar]) -> None:
+        # sort variables by depth
         depths = np.array([var.depth for var in variables])
-        self.variables = list(np.array(variables)[np.argsort(depths, kind="stable")])
+        sorted_idx = np.argsort(depths, kind="stable")
+        self.variables = [variables[i] for i in sorted_idx]
 
         # collect names of variables
         self.names = []

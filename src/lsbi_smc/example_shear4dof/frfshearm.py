@@ -9,10 +9,10 @@ from scipy.linalg import eigh
 
 def frfshearm2(
     ks: npt.ArrayLike,
-    ms: npt.ArrayLike | float,
-    zeta: npt.ArrayLike | float,
+    ms: npt.NDArray[np.float64] | float | int,
+    zeta: npt.NDArray[np.float64] | float | int,
     damping: Literal["rayleigh", "stiffness"] = "rayleigh",
-    omega_target: npt.ArrayLike | None = None,
+    omega_target: npt.NDArray[np.float64] | None = None,
     dlf: float = 0.005,
     fmax: float = 5.12,
 ) -> npt.NDArray[np.float64]:
@@ -24,7 +24,7 @@ def frfshearm2(
     n_dof = len(ks)
 
     # mass matrix -----
-    ms = np.full(n_dof, float(ms)) if np.isscalar(ms) else np.asarray(ms, dtype=float)
+    ms = np.full(n_dof, float(ms)) if isinstance(ms, (int, float)) else np.asarray(ms, dtype=float)
     m_mat = np.diag(ms)
 
     # stiffness matrix -----
@@ -41,10 +41,11 @@ def frfshearm2(
 
     # determine coefficents a0 & a1 -----
     if damping == "stiffness":
-        if not np.isscalar(zeta):
-            zeta = np.asarray(zeta, dtype=float)
-            zeta = zeta[0]
-        a1 = 2.0 * float(zeta) / omega_nat[0]
+        if isinstance(zeta, (int, float)):
+            zeta_val: float = float(zeta)
+        else:
+            zeta_val = float(np.asarray(zeta, dtype=float).flat[0])
+        a1 = 2.0 * zeta_val / omega_nat[0]
         a0 = 0.0
 
     elif damping == "rayleigh":
@@ -53,11 +54,11 @@ def frfshearm2(
         else:
             omega_target = np.asarray(omega_target, dtype=float)
             omega1, omega2 = omega_target[0], omega_target[1]
-        if np.isscalar(zeta):
-            zeta1, zeta2 = float(zeta), float(zeta)
+        if isinstance(zeta, (int, float)):
+            zeta1 = zeta2 = float(zeta)
         else:
-            zeta = np.asarray(zeta, dtype=float)
-            zeta1, zeta2 = zeta[0], zeta[1]
+            zeta_arr = np.asarray(zeta, dtype=float)
+            zeta1, zeta2 = float(zeta_arr[0]), float(zeta_arr[1])
         a_coeff = np.array(
             [[1 / (2 * omega1), omega1 / 2], [1 / (2 * omega2), omega2 / 2]], dtype=float
         )
@@ -89,7 +90,7 @@ def frfshearm2(
 
 def eigen(
     ks: npt.ArrayLike,
-    ms: npt.ArrayLike | float,
+    ms: npt.NDArray[np.float64] | float | int,
 ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
     """
     Eigenvalue analysis
@@ -98,7 +99,7 @@ def eigen(
     n_dof = len(ks)
 
     # mass matrix -----
-    ms = np.full(n_dof, float(ms)) if np.isscalar(ms) else np.asarray(ms, dtype=float)
+    ms = np.full(n_dof, float(ms)) if isinstance(ms, (int, float)) else np.asarray(ms, dtype=float)
     m_mat = np.diag(ms)
 
     # stiffness matrix -----

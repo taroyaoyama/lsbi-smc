@@ -1,14 +1,13 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import torch
 import torch.distributions as dist
 from torch import Tensor
 
 if TYPE_CHECKING:
-    from lsbi_smc.smc.prior import HierarchicalPrior
-    from lsbi_smc.smc.smc import Particles
+    from lsbi_smc.smc.smc import LikelihoodProtocol, Particles, PriorProtocol, ProposalProtocol
 
 
 class RWMetropolisKernel:
@@ -16,15 +15,17 @@ class RWMetropolisKernel:
     Random Walk Metropolis-Hastings Kernel
     """
 
-    def __init__(self, proposal: Any) -> None:
+    proposal: ProposalProtocol
+
+    def __init__(self, proposal: ProposalProtocol) -> None:
         self.proposal = proposal
 
     def __call__(
         self,
         particles: Particles,
         q: float,
-        prior: HierarchicalPrior,
-        likelihood: Any,
+        prior: PriorProtocol,
+        likelihood: LikelihoodProtocol,
     ) -> tuple[Tensor, Tensor, Tensor]:
         device = particles.pop.device
         pop_new = self.proposal(particles).to(device)
@@ -66,8 +67,8 @@ class HMCKernel:
         self,
         particles: Particles,
         q: float,
-        prior: HierarchicalPrior,
-        likelihood: Any,
+        prior: PriorProtocol,
+        likelihood: LikelihoodProtocol,
     ) -> tuple[Tensor, Tensor, Tensor]:
         device = particles.pop.device
         dtype = particles.pop.dtype

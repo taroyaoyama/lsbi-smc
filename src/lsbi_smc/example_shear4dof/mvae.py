@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
 from typing import Literal, overload
 
 import matplotlib.pyplot as plt
@@ -10,7 +11,6 @@ import torch.nn as nn
 from matplotlib.figure import Figure
 from torch import Tensor
 from torch.nn.utils import spectral_norm
-from torch.utils.data import DataLoader
 
 # ----------------
 # util
@@ -525,7 +525,7 @@ def plot_frf(
     ids: list[int],
     chs: list[int],
     model: MVAE,
-    loader: DataLoader,  # type: ignore[type-arg]
+    loader: Iterable[tuple[Tensor, Tensor, Tensor]],
     dlf: float = 0.005,
 ) -> tuple[Figure, npt.NDArray[np.object_]]:
     device = next(model.parameters()).device

@@ -1,3 +1,5 @@
+from typing import cast
+
 import numpy as np
 import torch
 from torch.utils.data import DataLoader, TensorDataset, random_split
@@ -49,7 +51,7 @@ valid_loader = DataLoader(
 # load mvae model
 ndof, z_dim = 4, 8
 _mvae = MVAE(z_dim=z_dim, ch=1, size=1024, nlabel=ndof, depth=1).to(device)
-model: MVAE = torch.compile(_mvae)  # type: ignore[assignment]
+model = cast(MVAE, torch.compile(_mvae))
 
 # Adam optimizer
 optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
@@ -98,10 +100,10 @@ for epoch in range(epochs):
             vl_loss += vll.item() * y.size(0)
 
     # averaging & print
-    tr_loss /= len(train_loader.dataset)
-    kl_loss /= len(train_loader.dataset)
-    rc_loss /= len(train_loader.dataset)
-    vl_loss /= len(valid_loader.dataset)
+    tr_loss /= len(train_dataset)
+    kl_loss /= len(train_dataset)
+    rc_loss /= len(train_dataset)
+    vl_loss /= len(valid_dataset)
 
     print(f"Epoch {epoch:03d}: Train loss = {tr_loss:16.4f} | Valid loss = {vl_loss:16.4f}")
 

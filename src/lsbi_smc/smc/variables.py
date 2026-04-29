@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Protocol, cast
 
+import numpy.typing as npt
 import torch
 import torch.distributions as dist
 from torch import Tensor
@@ -14,7 +15,7 @@ class ConstantVector:
 
     def __init__(
         self,
-        value: Any,
+        value: npt.ArrayLike | Tensor,
         device: torch.device | str | None = None,
         dtype: torch.dtype = torch.float32,
     ) -> None:
@@ -44,13 +45,13 @@ class Uniform:
 
     _values: Tensor | None
     name: str
-    parents: list[Any]
+    parents: list[ConstantVector]
     depth: int
-    lower: Any
-    upper: Any
+    lower: ConstantVector
+    upper: ConstantVector
     dim: int
 
-    def __init__(self, name: str, lower: Any, upper: Any) -> None:
+    def __init__(self, name: str, lower: ConstantVector, upper: ConstantVector) -> None:
         self.name = name
         self.parents = [lower, upper]
         self.depth = max([parent.depth for parent in self.parents]) + 1
@@ -102,13 +103,13 @@ class Normal:
 
     _values: Tensor | None
     name: str
-    parents: list[Any]
+    parents: list[ConstantVector]
     depth: int
-    mu: Any
-    sg: Any
+    mu: ConstantVector
+    sg: ConstantVector
     dim: int
 
-    def __init__(self, name: str, mu: Any, sg: Any) -> None:
+    def __init__(self, name: str, mu: ConstantVector, sg: ConstantVector) -> None:
         self.name = name
         self.parents = [mu, sg]
         self.depth = max([parent.depth for parent in self.parents]) + 1
@@ -160,13 +161,13 @@ class HalfNormal(Normal):
     Class for Half-normal random variables.
     """
 
-    def __init__(self, name: str, sg: Any) -> None:
+    def __init__(self, name: str, sg: ConstantVector) -> None:
         super().__init__(name, Constant(0.0), sg)
 
     def sample(self, n: int, detach: bool = False) -> Tensor | None:
         sv = self.sg.values(n)
         sampler = dist.HalfNormal(sv)
-        values = sampler.sample((1,))[0]
+        values = cast(Tensor, sampler.sample((1,)))[0]
         if detach:
             return values
         self._values = values
@@ -193,13 +194,13 @@ class Laplace:
 
     _values: Tensor | None
     name: str
-    parents: list[Any]
+    parents: list[ConstantVector]
     depth: int
-    mu: Any
-    b: Any
+    mu: ConstantVector
+    b: ConstantVector
     dim: int
 
-    def __init__(self, name: str, mu: Any, b: Any) -> None:
+    def __init__(self, name: str, mu: ConstantVector, b: ConstantVector) -> None:
         """
         Laplace(mu, b)   （location mu, scale b > 0）
         """
@@ -261,12 +262,12 @@ class Exponential:
 
     _values: Tensor | None
     name: str
-    parents: list[Any]
+    parents: list[ConstantVector]
     depth: int
-    rate: Any
+    rate: ConstantVector
     dim: int
 
-    def __init__(self, name: str, rate: Any) -> None:
+    def __init__(self, name: str, rate: ConstantVector) -> None:
         self.name = name
         self.parents = [rate]
         self.depth = max([parent.depth for parent in self.parents]) + 1
@@ -304,3 +305,20 @@ class Exponential:
 
     def check_support(self, values: Tensor) -> Tensor:
         return values >= 0
+
+
+class DistVar(Protocol):
+    """Protocol for random variable nodes managed by HierarchicalPrior."""
+
+    depth: int
+    dim: int
+    name: str
+    _values: Tensor | None
+
+    def values(self, n: int | None = None) -> Tensor: ...
+
+    def sample(self, n: int, detach: bool = False) -> Tensor | None: ...
+
+    def lp(self, values: Tensor | None = None) -> Tensor: ...
+
+    def check_support(self, values: Tensor) -> Tensor: ...

@@ -1,12 +1,50 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Protocol
 
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
 import torch
 from torch import Tensor
+
+
+class LikelihoodProtocol(Protocol):
+    """Protocol for likelihood functions used in SMC."""
+
+    device: torch.device
+
+    def __call__(self, theta: Tensor) -> Tensor: ...
+
+
+class PriorProtocol(Protocol):
+    """Protocol for prior distributions used in SMC."""
+
+    names: list[str]
+
+    def sample(self, n: int = 1) -> Tensor: ...
+
+    def lp(self, values: Tensor | None = None) -> Tensor: ...
+
+    def check_support(self, values: Tensor) -> Tensor: ...
+
+
+class ProposalProtocol(Protocol):
+    """Protocol for MCMC proposal distributions."""
+
+    def __call__(self, particles: Particles) -> Tensor: ...
+
+
+class KernelProtocol(Protocol):
+    """Protocol for MCMC transition kernels used in SMC."""
+
+    def __call__(
+        self,
+        particles: Particles,
+        q: float,
+        prior: PriorProtocol,
+        likelihood: LikelihoodProtocol,
+    ) -> tuple[Tensor, Tensor, Tensor]: ...
 
 
 class Particles:
@@ -102,9 +140,9 @@ class SMC:
     """
 
     pop_size: int
-    likelihood: Any
-    prior: Any
-    kernel: Any
+    likelihood: LikelihoodProtocol
+    prior: PriorProtocol
+    kernel: KernelProtocol
     pops: list[Tensor]
     q: list[float]
     q_tar: float
@@ -114,9 +152,9 @@ class SMC:
     def __init__(
         self,
         pop_size: int,
-        likelihood: Any,
-        prior: Any,
-        kernel: Any,
+        likelihood: LikelihoodProtocol,
+        prior: PriorProtocol,
+        kernel: KernelProtocol,
         q_tar: float = 1.0,
     ) -> None:
         self.pop_size = pop_size
