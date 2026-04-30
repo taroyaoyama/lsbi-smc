@@ -1,5 +1,3 @@
-from typing import cast
-
 import numpy as np
 import torch
 from torch.utils.data import DataLoader, TensorDataset, random_split
@@ -50,14 +48,10 @@ valid_loader = DataLoader(
 
 # load mvae model
 ndof, z_dim = 4, 8
-_mvae = MVAE(z_dim=z_dim, ch=1, size=1024, nlabel=ndof, depth=1).to(device)
-model = cast(MVAE, torch.compile(_mvae))
+model = MVAE(z_dim=z_dim, ch=1, size=1024, nlabel=ndof, depth=1).to(device)
 
 # Adam optimizer
 optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
-
-# AMP: bfloat16 has the same dynamic range as fp32, avoiding fp16 overflow on init
-use_amp = device.type == "cuda"
 
 # training
 epochs = 1000
@@ -75,9 +69,8 @@ for epoch in range(epochs):
         x = x.to(device)
         y = y.to(device)
         yn = yn.to(device)
-        optimizer.zero_grad(set_to_none=True)
-        with torch.autocast(device_type=device.type, enabled=use_amp, dtype=torch.bfloat16):
-            trl, kll, rcl = model.loss(yn, y, x, alp1=5.0)
+        optimizer.zero_grad()
+        trl, kll, rcl = model.loss(yn, y, x, alp1=5.0)
         trl.backward()
         optimizer.step()
 
@@ -93,8 +86,7 @@ for epoch in range(epochs):
             x = x.to(device)
             y = y.to(device)
             yn = yn.to(device)
-            with torch.autocast(device_type=device.type, enabled=use_amp, dtype=torch.bfloat16):
-                vll, _, _ = model.loss(yn, y, x, alp1=5.0)
+            vll, _, _ = model.loss(yn, y, x, alp1=5.0)
 
             # summing up loss values
             vl_loss += vll.item() * y.size(0)
@@ -115,7 +107,7 @@ for epoch in range(epochs):
         torch.save(
             {
                 "epoch": epoch,
-                "model_state_dict": _mvae.state_dict(),
+                "model_state_dict": model.state_dict(),
                 "optimizer_state_dict": optimizer.state_dict(),
             },
             pth_path,
