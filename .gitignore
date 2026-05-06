@@ -224,6 +224,9 @@ train_data.npz
 # Inference results
 posterior.mat
 
+# Plots
+posterior_plot.png
+
 # paper files
 papers
 docs
