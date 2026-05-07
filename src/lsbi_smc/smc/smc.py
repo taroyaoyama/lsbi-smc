@@ -1,9 +1,6 @@
-from __future__ import annotations
-
-from typing import Protocol
+from typing import Annotated, Protocol
 
 import numpy as np
-import numpy.typing as npt
 import pandas as pd
 import torch
 from torch import Tensor
@@ -14,7 +11,7 @@ class LikelihoodProtocol(Protocol):
 
     device: torch.device
 
-    def __call__(self, theta: Tensor) -> Tensor: ...
+    def __call__(self, theta: Annotated[Tensor, "(n, dim)"]) -> Annotated[Tensor, "(n,)"]: ...
 
 
 class PriorProtocol(Protocol):
@@ -22,17 +19,21 @@ class PriorProtocol(Protocol):
 
     names: list[str]
 
-    def sample(self, n: int = 1) -> Tensor: ...
+    def sample(self, n: int = 1) -> Annotated[Tensor, "(n, total_dim)"]: ...
 
-    def lp(self, values: Tensor | None = None) -> Tensor: ...
+    def lp(
+        self, values: Annotated[Tensor, "(n, total_dim)"] | None = None
+    ) -> Annotated[Tensor, "(n,)"]: ...
 
-    def check_support(self, values: Tensor) -> Tensor: ...
+    def check_support(
+        self, values: Annotated[Tensor, "(n, total_dim)"]
+    ) -> Annotated[Tensor, "(n,) bool"]: ...
 
 
 class ProposalProtocol(Protocol):
     """Protocol for MCMC proposal distributions."""
 
-    def __call__(self, particles: Particles) -> Tensor: ...
+    def __call__(self, particles: "Particles") -> Annotated[Tensor, "(n, dim)"]: ...
 
 
 class KernelProtocol(Protocol):
@@ -40,11 +41,15 @@ class KernelProtocol(Protocol):
 
     def __call__(
         self,
-        particles: Particles,
+        particles: "Particles",
         q: float,
         prior: PriorProtocol,
         likelihood: LikelihoodProtocol,
-    ) -> tuple[Tensor, Tensor, Tensor]: ...
+    ) -> tuple[
+        Annotated[Tensor, "(n, dim)"],
+        Annotated[Tensor, "(n,)"],
+        Annotated[Tensor, "(n,) bool"],
+    ]: ...
 
 
 class Particles:
@@ -52,14 +57,14 @@ class Particles:
     Class for particles.
     """
 
-    pop: Tensor
+    pop: Annotated[Tensor, "(n, dim)"]
     dq: float
-    lp: Tensor | None
-    weights: Tensor | None
+    lp: Annotated[Tensor, "(n,)"] | None
+    weights: Annotated[Tensor, "(n,)"] | None
     dim: int
     size: int
 
-    def __init__(self, pop_ini: Tensor) -> None:
+    def __init__(self, pop_ini: Annotated[Tensor, "(n, dim)"]) -> None:
         self.pop = pop_ini
         self.dq = 0.0
         self.lp = None
@@ -93,19 +98,24 @@ class Particles:
         self.pop = self.pop[idx]
         self.lp = self.lp[idx]
 
-    def replace(self, idx: Tensor, pop_new: Tensor, lp_new: Tensor) -> None:
+    def replace(
+        self,
+        idx: Annotated[Tensor, "(n,) bool"],
+        pop_new: Annotated[Tensor, "(n, dim)"],
+        lp_new: Annotated[Tensor, "(n,)"],
+    ) -> None:
         assert self.lp is not None
         self.pop[idx] = pop_new[idx]
         self.lp[idx] = lp_new[idx]
 
 
-def ess(weights_np: npt.NDArray[np.float64]) -> float:
+def ess(weights_np: Annotated[np.ndarray, "(n,)"]) -> float:
     s1 = weights_np.sum()
     s2 = (weights_np**2).sum()
     return float((s1 * s1) / s2)
 
 
-def _ess_from_lp(delta_q: float, lp_np: npt.NDArray[np.float64]) -> float:
+def _ess_from_lp(delta_q: float, lp_np: Annotated[np.ndarray, "(n,)"]) -> float:
     z = delta_q * lp_np
     z -= z.max()
     w = np.exp(z)
@@ -115,7 +125,7 @@ def _ess_from_lp(delta_q: float, lp_np: npt.NDArray[np.float64]) -> float:
 def _find_next_q(
     q_prev: float,
     q_tar: float,
-    lp_np: npt.NDArray[np.float64],
+    lp_np: Annotated[np.ndarray, "(n,)"],
     ess_tar: float,
     tol: float = 1e-6,
     maxit: int = 50,
@@ -143,7 +153,7 @@ class SMC:
     likelihood: LikelihoodProtocol
     prior: PriorProtocol
     kernel: KernelProtocol
-    pops: list[Tensor]
+    pops: list[Annotated[Tensor, "(n, dim)"]]
     q: list[float]
     q_tar: float
     device: torch.device
@@ -173,7 +183,7 @@ class SMC:
         self.particles.lp = self.likelihood(self.particles.pop).to(self.device)
         self.pops.append(pop_ini)
 
-    def assign_pop_ini(self, pop: Tensor) -> None:
+    def assign_pop_ini(self, pop: Annotated[Tensor, "(n, dim)"]) -> None:
         pop = pop.to(self.device)
         self.particles = Particles(pop)
         self.particles.lp = self.likelihood(self.particles.pop).to(self.device)

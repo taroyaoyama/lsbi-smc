@@ -1,6 +1,4 @@
-from __future__ import annotations
-
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Annotated
 
 import torch
 import torch.distributions as dist
@@ -20,7 +18,11 @@ class ChingAndChenProposal:
     def __init__(self, b: float) -> None:
         self.b = b
 
-    def cov_proposal(self, pop: Tensor, weights: Tensor) -> Tensor:
+    def cov_proposal(
+        self,
+        pop: Annotated[Tensor, "(n, dim)"],
+        weights: Annotated[Tensor, "(n,)"],
+    ) -> Annotated[Tensor, "(dim, dim)"]:
         device = pop.device
         w = torch.nan_to_num(weights, nan=0.0, posinf=0.0, neginf=0.0)
         s = w.sum()
@@ -34,7 +36,7 @@ class ChingAndChenProposal:
         cov = cov * (self.b**2) + eps * torch.eye(pop.shape[1], device=device)
         return cov
 
-    def __call__(self, particles: Particles) -> Tensor:
+    def __call__(self, particles: "Particles") -> Annotated[Tensor, "(n, dim)"]:
         assert particles.weights is not None
         device = particles.pop.device
         cov = self.cov_proposal(particles.pop, particles.weights)

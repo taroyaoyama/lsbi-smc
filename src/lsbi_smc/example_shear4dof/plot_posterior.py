@@ -1,5 +1,7 @@
 """Visualize posterior samples from posterior.mat."""
 
+from typing import Annotated
+
 import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
 import numpy as np
@@ -24,12 +26,12 @@ EQUIV_SOLUTIONS = {
 EQUIV_COLORS = ["#E69F00", "#56B4E9", "#009E73"]
 
 
-def load_pop() -> np.ndarray:
+def load_pop() -> Annotated[np.ndarray, "(pop_size, ndof)"]:
     data = sio.loadmat(MAT_PATH)
     return data["pop"]  # (2000, 4)
 
 
-def plot_corner(pop: np.ndarray) -> Figure:
+def plot_corner(pop: Annotated[np.ndarray, "(pop_size, ndof)"]) -> Figure:
     n_params = pop.shape[1]
     fig = plt.figure(figsize=(12, 12))
     fig.suptitle(
@@ -177,7 +179,7 @@ def plot_corner(pop: np.ndarray) -> Figure:
     return fig
 
 
-def print_summary(pop: np.ndarray) -> None:
+def print_summary(pop: Annotated[np.ndarray, "(pop_size, ndof)"]) -> None:
     print(f"{'Param':<6} {'Mean':>8} {'Std':>8} {'2.5%':>8} {'50%':>8} {'97.5%':>8}")
     print("-" * 46)
     for i, name in enumerate(PARAM_NAMES):

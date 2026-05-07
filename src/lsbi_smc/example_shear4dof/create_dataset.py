@@ -1,7 +1,6 @@
-from __future__ import annotations
+from typing import Annotated
 
 import numpy as np
-import numpy.typing as npt
 from scipy.stats import norm, qmc
 
 from lsbi_smc.example_shear4dof.frfshearm import frfshearm2
@@ -11,7 +10,7 @@ LLIM, ULIM = 0.33, 3.00
 
 
 # define simulator
-def fun(x: npt.NDArray[np.float32]) -> npt.NDArray[np.float64]:
+def fun(x: Annotated[np.ndarray, "(ndof,)"]) -> Annotated[np.ndarray, "(ndof, n_freq)"]:
     return frfshearm2(
         x * 1000,
         ms=1.0,
@@ -29,12 +28,14 @@ simulator = Simulator(fun, lims=[LLIM, ULIM])
 ndof = 4
 n_sim = 100000
 sampler = qmc.LatinHypercube(d=ndof)
-x_sim = sampler.random(n_sim)
-y_sim = simulator(x_sim)
+x_sim: Annotated[np.ndarray, "(n_sim, ndof)"] = sampler.random(n_sim)
+y_sim: Annotated[np.ndarray, "(n_sim, ndof, 1, n_freq)"] = simulator(x_sim)
 
 # add noise
 noise_level = 0.20
-y_sim_n = y_sim + noise_level * norm.rvs(size=y_sim.shape)
+y_sim_n: Annotated[np.ndarray, "(n_sim, ndof, 1, n_freq)"] = y_sim + noise_level * norm.rvs(
+    size=y_sim.shape
+)
 
 # export
 np.savez("train_data.npz", llim=LLIM, ulim=ULIM, x_sim=x_sim, y_sim=y_sim, y_sim_n=y_sim_n)

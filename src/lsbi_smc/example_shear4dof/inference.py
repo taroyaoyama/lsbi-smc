@@ -1,7 +1,6 @@
-from __future__ import annotations
+from typing import Annotated
 
 import numpy as np
-import numpy.typing as npt
 import torch
 import torch.distributions as dist
 from scipy import io
@@ -40,7 +39,7 @@ model.eval()
 
 
 # simulator
-def fun(x: npt.NDArray[np.float32]) -> npt.NDArray[np.float64]:
+def fun(x: Annotated[np.ndarray, "(ndof,)"]) -> Annotated[np.ndarray, "(ndof, n_freq)"]:
     return frfshearm2(
         x * 1000,
         ms=1.0,
@@ -55,14 +54,16 @@ def fun(x: npt.NDArray[np.float32]) -> npt.NDArray[np.float64]:
 simulator = Simulator(fun, lims=[LLIM, ULIM], workers=2)
 
 # run
-x_obs = np.full((1, ndof), (1.0 - LLIM) / (ULIM - LLIM)).astype(np.float32)
-y_obs = simulator(x_obs)[:, [-1], :, :]
+x_obs: Annotated[np.ndarray, "(1, ndof)"] = np.full((1, ndof), (1.0 - LLIM) / (ULIM - LLIM)).astype(
+    np.float32
+)
+y_obs: Annotated[np.ndarray, "(1, 1, 1, n_freq)"] = simulator(x_obs)[:, [-1], :, :]
 y_obs = y_obs + norm.rvs(size=y_obs.shape, random_state=101) * 0.20
 y_obs = (y_obs - y_mn) / y_sd
 y_obs = y_obs.astype(np.float32)
 
 # to torch
-y_obs_tc = torch.from_numpy(y_obs).to(device)
+y_obs_tc: Annotated[Tensor, "(1, 1, 1, n_freq)"] = torch.from_numpy(y_obs).to(device)
 
 # --------------------
 # define likelihood
@@ -80,13 +81,18 @@ class LogLikelihood(MVAEBasedLogLikelihood):
         self,
         enc_w: torch.nn.Module,
         enc_x: torch.nn.Module,
-        obs: Tensor,
+        obs: Annotated[Tensor, "(1, ch, depth, n_freq)"],
         device: torch.device,
     ) -> None:
         super().__init__(enc_w, enc_x, obs, device)
         self.n_call = 0
 
-    def __call__(self, theta: Tensor, alp: float = 1.0, tau: float = 0.00) -> Tensor:
+    def __call__(
+        self,
+        theta: Annotated[Tensor, "(n, ndof)"],
+        alp: float = 1.0,
+        tau: float = 0.00,
+    ) -> Annotated[Tensor, "(n,)"]:
         theta = stdnorm.cdf(theta)
         self.n_call += len(theta)
         return super().__call__(theta, alp=1.0, tau=0.00)
@@ -123,7 +129,7 @@ smc1 = SMC(
 smc1.run(ess_tar_ratio=0.8, mcmc_iter=10)
 
 # extract posterior samples
-pop = smc1.pops[-1].detach().cpu().numpy()
+pop: Annotated[np.ndarray, "(pop_size, ndof)"] = smc1.pops[-1].detach().cpu().numpy()
 pop = norm.cdf(pop)
 pop = pop * (ULIM - LLIM) + LLIM
 

@@ -1,6 +1,4 @@
-from __future__ import annotations
-
-from typing import Literal
+from typing import Annotated, Literal
 
 import numpy as np
 import numpy.typing as npt
@@ -9,13 +7,13 @@ from scipy.linalg import eigh
 
 def frfshearm2(
     ks: npt.ArrayLike,
-    ms: npt.NDArray[np.float64] | float | int,
-    zeta: npt.NDArray[np.float64] | float | int,
+    ms: Annotated[np.ndarray, "(ndof,)"] | float | int,
+    zeta: Annotated[np.ndarray, "(2,)"] | float | int,
     damping: Literal["rayleigh", "stiffness"] = "rayleigh",
-    omega_target: npt.NDArray[np.float64] | None = None,
+    omega_target: Annotated[np.ndarray, "(2,)"] | None = None,
     dlf: float = 0.005,
     fmax: float = 5.12,
-) -> npt.NDArray[np.float64]:
+) -> Annotated[np.ndarray, "(ndof, n_freq)"]:
     """
     Frequency response function for an N-DOF shear building
     with Rayleigh damping: C = a0 M + a1 K.
@@ -90,8 +88,11 @@ def frfshearm2(
 
 def eigen(
     ks: npt.ArrayLike,
-    ms: npt.NDArray[np.float64] | float | int,
-) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+    ms: Annotated[np.ndarray, "(ndof,)"] | float | int,
+) -> tuple[
+    Annotated[np.ndarray, "(ndof,)"],
+    Annotated[np.ndarray, "(ndof, ndof)"],
+]:
     """
     Eigenvalue analysis
     """

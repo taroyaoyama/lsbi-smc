@@ -1,6 +1,4 @@
-from __future__ import annotations
-
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Annotated
 
 import torch
 import torch.distributions as dist
@@ -15,18 +13,22 @@ class RWMetropolisKernel:
     Random Walk Metropolis-Hastings Kernel
     """
 
-    proposal: ProposalProtocol
+    proposal: "ProposalProtocol"
 
-    def __init__(self, proposal: ProposalProtocol) -> None:
+    def __init__(self, proposal: "ProposalProtocol") -> None:
         self.proposal = proposal
 
     def __call__(
         self,
-        particles: Particles,
+        particles: "Particles",
         q: float,
-        prior: PriorProtocol,
-        likelihood: LikelihoodProtocol,
-    ) -> tuple[Tensor, Tensor, Tensor]:
+        prior: "PriorProtocol",
+        likelihood: "LikelihoodProtocol",
+    ) -> tuple[
+        Annotated[Tensor, "(n, dim)"],
+        Annotated[Tensor, "(n,)"],
+        Annotated[Tensor, "(n,) bool"],
+    ]:
         device = particles.pop.device
         pop_new = self.proposal(particles).to(device)
 
@@ -65,16 +67,22 @@ class HMCKernel:
 
     def __call__(
         self,
-        particles: Particles,
+        particles: "Particles",
         q: float,
-        prior: PriorProtocol,
-        likelihood: LikelihoodProtocol,
-    ) -> tuple[Tensor, Tensor, Tensor]:
+        prior: "PriorProtocol",
+        likelihood: "LikelihoodProtocol",
+    ) -> tuple[
+        Annotated[Tensor, "(n, dim)"],
+        Annotated[Tensor, "(n,)"],
+        Annotated[Tensor, "(n,) bool"],
+    ]:
         device = particles.pop.device
         dtype = particles.pop.dtype
         b_size, n_dim = particles.pop.shape
 
-        def potential_energy(th: Tensor) -> Tensor:
+        def potential_energy(
+            th: Annotated[Tensor, "(n, dim)"],
+        ) -> Annotated[Tensor, "(n,)"]:
             lp = q * likelihood(th) + prior.lp(th)
             return -lp
 

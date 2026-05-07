@@ -1,7 +1,5 @@
-from __future__ import annotations
-
 from collections.abc import Iterable
-from typing import Literal, overload
+from typing import Annotated, Literal, overload
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -17,7 +15,11 @@ from torch.nn.utils import spectral_norm
 # ----------------
 
 
-def reparameterization(mean: Tensor, var: Tensor, device: torch.device) -> Tensor:
+def reparameterization(
+    mean: Annotated[Tensor, "(batch, z_dim)"],
+    var: Annotated[Tensor, "(batch, z_dim)"],
+    device: torch.device,
+) -> Annotated[Tensor, "(batch, z_dim)"]:
     epsilon = torch.randn_like(mean)
     return mean + torch.sqrt(var) * epsilon
 
@@ -27,20 +29,32 @@ def reparameterization(mean: Tensor, var: Tensor, device: torch.device) -> Tenso
 # --------------------
 
 
-def gauss_gauss_kl(mean1: Tensor, var1: Tensor, mean2: Tensor, var2: Tensor) -> Tensor:
+def gauss_gauss_kl(
+    mean1: Annotated[Tensor, "(batch, z_dim)"],
+    var1: Annotated[Tensor, "(batch, z_dim)"],
+    mean2: Annotated[Tensor, "(batch, z_dim)"],
+    var2: Annotated[Tensor, "(batch, z_dim)"],
+) -> Annotated[Tensor, "()"]:
     eps = 1e-8
     _var2 = var2 + eps
     _kl = torch.log(_var2) - torch.log(var1 + eps) + (var1 + (mean1 - mean2) ** 2) / _var2 - 1
     return 0.5 * torch.sum(_kl, dim=1).mean()
 
 
-def gauss_unitgauss_kl(mean: Tensor, var: Tensor) -> Tensor:
+def gauss_unitgauss_kl(
+    mean: Annotated[Tensor, "(batch, z_dim)"],
+    var: Annotated[Tensor, "(batch, z_dim)"],
+) -> Annotated[Tensor, "()"]:
     eps = 1e-8
     _kl = -0.5 * (1 + torch.log(var + eps) - mean**2 - var)
     return torch.sum(_kl, dim=1).mean()
 
 
-def rec_loss_norm_4d(x: Tensor, mean: Tensor, var: Tensor) -> Tensor:
+def rec_loss_norm_4d(
+    x: Annotated[Tensor, "(batch, ch, depth, size)"],
+    mean: Annotated[Tensor, "(batch, ch, depth, size)"],
+    var: Annotated[Tensor, "(batch, ch, depth, size)"],
+) -> Annotated[Tensor, "()"]:
     return -torch.mean(
         torch.sum(
             -0.5 * ((x - mean) ** 2 / var + torch.log(var) + torch.log(torch.tensor(2 * torch.pi))),
@@ -49,7 +63,11 @@ def rec_loss_norm_4d(x: Tensor, mean: Tensor, var: Tensor) -> Tensor:
     )
 
 
-def rec_loss_norm_2d(x: Tensor, mean: Tensor, var: Tensor) -> Tensor:
+def rec_loss_norm_2d(
+    x: Annotated[Tensor, "(batch, dim)"],
+    mean: Annotated[Tensor, "(batch, dim)"],
+    var: Annotated[Tensor, "(batch, dim)"],
+) -> Annotated[Tensor, "()"]:
     return -torch.mean(
         torch.sum(
             -0.5 * ((x - mean) ** 2 / var + torch.log(var) + torch.log(torch.tensor(2 * torch.pi))),
@@ -95,7 +113,10 @@ class ResblockEnc(nn.Module):
 
         self._initialize_weights()
 
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(
+        self,
+        x: Annotated[Tensor, "(batch, in_ch, h, w_in)"],
+    ) -> Annotated[Tensor, "(batch, out_ch, h_out, w_out)"]:
         out_x = self.model(x) + self.bypass(x)
         return out_x
 
@@ -139,7 +160,10 @@ class FirstResblockEnc(nn.Module):
 
         self._initialize_weights()
 
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(
+        self,
+        x: Annotated[Tensor, "(batch, in_ch, h, w_in)"],
+    ) -> Annotated[Tensor, "(batch, out_ch, h_out, w_out)"]:
         out_x = self.model(x) + self.bypass(x)
         return out_x
 
@@ -162,7 +186,10 @@ class ResblockEncSmall(nn.Module):
         # Ensure dimensions match for bypass addition
         self.adjust_dim = nn.Linear(in_dim, out_dim) if in_dim != out_dim else nn.Identity()
 
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(
+        self,
+        x: Annotated[Tensor, "(batch, in_dim)"],
+    ) -> Annotated[Tensor, "(batch, out_dim)"]:
         out = self.fc1(x)
         out = self.activation(out)
         out = self.fc2(out)
@@ -211,7 +238,10 @@ class ResblockDec(nn.Module):
 
         self._initialize_weights()
 
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(
+        self,
+        x: Annotated[Tensor, "(batch, in_ch, h_in, w_in)"],
+    ) -> Annotated[Tensor, "(batch, out_ch, h_out, w_out)"]:
         out_x = self.model(x) + self.bypass(x)
         return out_x
 
@@ -272,7 +302,14 @@ class Encoder(nn.Module):
 
         self._initialize_weights()
 
-    def forward(self, x: Tensor) -> tuple[Tensor, Tensor, Tensor]:
+    def forward(
+        self,
+        x: Annotated[Tensor, "(batch, ch, depth, size)"],
+    ) -> tuple[
+        Annotated[Tensor, "(batch, z_dim)"],
+        Annotated[Tensor, "(batch, z_dim)"],
+        Annotated[Tensor, "(batch, z_dim)"],
+    ]:
         encoded = self.blocks(x)
         encoded = self.fc(encoded.view(-1, encoded.shape[1] * encoded.shape[2] * encoded.shape[3]))
         mu = self.mu(encoded)
@@ -306,7 +343,14 @@ class EncoderW(nn.Module):
         self.mu = nn.Sequential(nn.Linear(z_dim, z_dim))
         self.var = nn.Sequential(nn.Linear(z_dim, z_dim), nn.Softplus())
 
-    def forward(self, w: Tensor) -> tuple[Tensor, Tensor, Tensor]:
+    def forward(
+        self,
+        w: Annotated[Tensor, "(batch, n_label)"],
+    ) -> tuple[
+        Annotated[Tensor, "(batch, z_dim)"],
+        Annotated[Tensor, "(batch, z_dim)"],
+        Annotated[Tensor, "(batch, z_dim)"],
+    ]:
         out = self.res_block1(w)
         out = self.res_block2(out)
         out = self.res_block3(out)
@@ -360,7 +404,13 @@ class Decoder(nn.Module):
 
         self._initialize_weights()
 
-    def forward(self, z: Tensor) -> tuple[Tensor, Tensor]:
+    def forward(
+        self,
+        z: Annotated[Tensor, "(batch, z_dim)"],
+    ) -> tuple[
+        Annotated[Tensor, "(batch, ch, depth, size)"],
+        Annotated[Tensor, "(batch, ch, depth, size)"],
+    ]:
         xx = self.fc(z)
         decoded = self.blocks(xx.view(-1, self.ch * 2**5, self.depth, int(self.size / 2**5)))
         mu = self.decoder_mu(decoded)
@@ -387,12 +437,32 @@ class MVAE(nn.Module):
         self.enc_w = EncoderW(z_dim, nlabel)
         self.dec = Decoder(z_dim, ch, size, depth)
 
-    def encode(self, x: Tensor, w: Tensor) -> tuple[Tensor, Tensor, Tensor, Tensor, Tensor, Tensor]:
+    def encode(
+        self,
+        x: Annotated[Tensor, "(batch, ch, depth, size)"],
+        w: Annotated[Tensor, "(batch, n_label)"],
+    ) -> tuple[
+        Annotated[Tensor, "(batch, z_dim)"],
+        Annotated[Tensor, "(batch, z_dim)"],
+        Annotated[Tensor, "(batch, z_dim)"],
+        Annotated[Tensor, "(batch, z_dim)"],
+        Annotated[Tensor, "(batch, z_dim)"],
+        Annotated[Tensor, "(batch, z_dim)"],
+    ]:
         z1, mu1, var1 = self.enc_x(x)
         z2, mu2, var2 = self.enc_w(w)
         return z1, mu1, var1, z2, mu2, var2
 
-    def decode(self, z1: Tensor, z2: Tensor) -> tuple[Tensor, Tensor, Tensor, Tensor]:
+    def decode(
+        self,
+        z1: Annotated[Tensor, "(batch, z_dim)"],
+        z2: Annotated[Tensor, "(batch, z_dim)"],
+    ) -> tuple[
+        Annotated[Tensor, "(batch, ch, depth, size)"],
+        Annotated[Tensor, "(batch, ch, depth, size)"],
+        Annotated[Tensor, "(batch, ch, depth, size)"],
+        Annotated[Tensor, "(batch, ch, depth, size)"],
+    ]:
         x_mu1, x_var1 = self.dec(z1)
         x_mu2, x_var2 = self.dec(z2)
         return x_mu1, x_var1, x_mu2, x_var2
@@ -400,34 +470,55 @@ class MVAE(nn.Module):
     @overload
     def forward(
         self,
-        x: Tensor,
-        w: Tensor,
+        x: Annotated[Tensor, "(batch, ch, depth, size)"],
+        w: Annotated[Tensor, "(batch, n_label)"],
         return_loss: Literal[True],
         alp1: float = ...,
         alp2: float = ...,
         alp3: float = ...,
-    ) -> tuple[Tensor, Tensor, Tensor]: ...
+    ) -> tuple[
+        Annotated[Tensor, "()"],
+        Annotated[Tensor, "()"],
+        Annotated[Tensor, "()"],
+    ]: ...
 
     @overload
     def forward(
         self,
-        x: Tensor,
-        w: Tensor,
+        x: Annotated[Tensor, "(batch, ch, depth, size)"],
+        w: Annotated[Tensor, "(batch, n_label)"],
         return_loss: Literal[False] = ...,
         alp1: float = ...,
         alp2: float = ...,
         alp3: float = ...,
-    ) -> tuple[Tensor, Tensor, Tensor, Tensor]: ...
+    ) -> tuple[
+        Annotated[Tensor, "(batch, ch, depth, size)"],
+        Annotated[Tensor, "(batch, ch, depth, size)"],
+        Annotated[Tensor, "(batch, ch, depth, size)"],
+        Annotated[Tensor, "(batch, ch, depth, size)"],
+    ]: ...
 
     def forward(
         self,
-        x: Tensor,
-        w: Tensor,
+        x: Annotated[Tensor, "(batch, ch, depth, size)"],
+        w: Annotated[Tensor, "(batch, n_label)"],
         return_loss: bool = False,
         alp1: float = 1.0,
         alp2: float = 10.0,
         alp3: float = 10.0,
-    ) -> tuple[Tensor, Tensor, Tensor] | tuple[Tensor, Tensor, Tensor, Tensor]:
+    ) -> (
+        tuple[
+            Annotated[Tensor, "()"],
+            Annotated[Tensor, "()"],
+            Annotated[Tensor, "()"],
+        ]
+        | tuple[
+            Annotated[Tensor, "(batch, ch, depth, size)"],
+            Annotated[Tensor, "(batch, ch, depth, size)"],
+            Annotated[Tensor, "(batch, ch, depth, size)"],
+            Annotated[Tensor, "(batch, ch, depth, size)"],
+        ]
+    ):
         z1, mu1, var1, z2, mu2, var2 = self.encode(x, w)
         x_mu1, x_var1, x_mu2, x_var2 = self.decode(z1, z2)
 
@@ -448,13 +539,17 @@ class MVAE(nn.Module):
 
     def loss(
         self,
-        xo: Tensor,
-        xi: Tensor,
-        w: Tensor,
+        xo: Annotated[Tensor, "(batch, ch, depth, size)"],
+        xi: Annotated[Tensor, "(batch, ch, depth, size)"],
+        w: Annotated[Tensor, "(batch, n_label)"],
         alp1: float = 1.0,
         alp2: float = 10.0,
         alp3: float = 10.0,
-    ) -> tuple[Tensor, Tensor, Tensor]:
+    ) -> tuple[
+        Annotated[Tensor, "()"],
+        Annotated[Tensor, "()"],
+        Annotated[Tensor, "()"],
+    ]:
         z1, mu1, var1, z2, mu2, var2 = self.encode(xi, w)
         x_mu1, x_var1, x_mu2, x_var2 = self.decode(z1, z2)
         # KL terms
@@ -481,23 +576,63 @@ class VAE(nn.Module):
         self.enc = Encoder(z_dim, ch, size, depth)
         self.dec = Decoder(z_dim, ch, size, depth)
 
-    def encode(self, x: Tensor) -> tuple[Tensor, Tensor, Tensor]:
+    def encode(
+        self,
+        x: Annotated[Tensor, "(batch, ch, depth, size)"],
+    ) -> tuple[
+        Annotated[Tensor, "(batch, z_dim)"],
+        Annotated[Tensor, "(batch, z_dim)"],
+        Annotated[Tensor, "(batch, z_dim)"],
+    ]:
         z, mu, var = self.enc(x)
         return z, mu, var
 
-    def decode(self, z: Tensor) -> tuple[Tensor, Tensor]:
+    def decode(
+        self,
+        z: Annotated[Tensor, "(batch, z_dim)"],
+    ) -> tuple[
+        Annotated[Tensor, "(batch, ch, depth, size)"],
+        Annotated[Tensor, "(batch, ch, depth, size)"],
+    ]:
         x_mu, x_var = self.dec(z)
         return x_mu, x_var
 
     @overload
-    def forward(self, x: Tensor, return_loss: Literal[True]) -> tuple[Tensor, Tensor, Tensor]: ...
+    def forward(
+        self,
+        x: Annotated[Tensor, "(batch, ch, depth, size)"],
+        return_loss: Literal[True],
+    ) -> tuple[
+        Annotated[Tensor, "()"],
+        Annotated[Tensor, "()"],
+        Annotated[Tensor, "()"],
+    ]: ...
 
     @overload
-    def forward(self, x: Tensor, return_loss: Literal[False] = ...) -> tuple[Tensor, Tensor]: ...
+    def forward(
+        self,
+        x: Annotated[Tensor, "(batch, ch, depth, size)"],
+        return_loss: Literal[False] = ...,
+    ) -> tuple[
+        Annotated[Tensor, "(batch, ch, depth, size)"],
+        Annotated[Tensor, "(batch, ch, depth, size)"],
+    ]: ...
 
     def forward(
-        self, x: Tensor, return_loss: bool = False
-    ) -> tuple[Tensor, Tensor, Tensor] | tuple[Tensor, Tensor]:
+        self,
+        x: Annotated[Tensor, "(batch, ch, depth, size)"],
+        return_loss: bool = False,
+    ) -> (
+        tuple[
+            Annotated[Tensor, "()"],
+            Annotated[Tensor, "()"],
+            Annotated[Tensor, "()"],
+        ]
+        | tuple[
+            Annotated[Tensor, "(batch, ch, depth, size)"],
+            Annotated[Tensor, "(batch, ch, depth, size)"],
+        ]
+    ):
         # encode
         z, mu, var = self.encode(x)
         # decode
@@ -525,7 +660,13 @@ def plot_frf(
     ids: list[int],
     chs: list[int],
     model: MVAE,
-    loader: Iterable[tuple[Tensor, Tensor, Tensor]],
+    loader: Iterable[
+        tuple[
+            Annotated[Tensor, "(batch, n_label)"],
+            Annotated[Tensor, "(batch, ch, depth, size)"],
+            Annotated[Tensor, "(batch, ch, depth, size)"],
+        ]
+    ],
     dlf: float = 0.005,
 ) -> tuple[Figure, npt.NDArray[np.object_]]:
     device = next(model.parameters()).device
@@ -539,12 +680,16 @@ def plot_frf(
     with torch.no_grad():
         y_rec, y_rec_var, y_pre, y_pre_var = model(y, x)
     # to cpu, numpy
-    y_rec = y_rec.cpu().detach().numpy()
-    y_pre = y_pre.cpu().detach().numpy()
-    y_tar = yn.cpu().detach().numpy()
-    y_rec_var = y_rec_var.cpu().detach().numpy()
-    y_pre_var = y_pre_var.cpu().detach().numpy()
-    f_axis = np.arange(dlf, dlf * (y_rec.shape[-1] + 1), dlf)
+    y_rec_np: Annotated[np.ndarray, "(batch, ch, depth, size)"] = y_rec.cpu().detach().numpy()
+    y_pre_np: Annotated[np.ndarray, "(batch, ch, depth, size)"] = y_pre.cpu().detach().numpy()
+    y_tar: Annotated[np.ndarray, "(batch, ch, depth, size)"] = yn.cpu().detach().numpy()
+    y_rec_var_np: Annotated[np.ndarray, "(batch, ch, depth, size)"] = (
+        y_rec_var.cpu().detach().numpy()
+    )
+    y_pre_var_np: Annotated[np.ndarray, "(batch, ch, depth, size)"] = (
+        y_pre_var.cpu().detach().numpy()
+    )
+    f_axis: Annotated[np.ndarray, "(size,)"] = np.arange(dlf, dlf * (y_rec_np.shape[-1] + 1), dlf)
     # plot
     nrow, ncol = len(chs), len(ids)
     fig, ax = plt.subplots(
@@ -557,29 +702,29 @@ def plot_frf(
     for i in range(nrow):
         for j in range(ncol):
             ax[i, j].plot(f_axis, y_tar[ids[j], chs[i], 0, :], color="tomato")
-            ax[i, j].plot(f_axis, y_rec[ids[j], chs[i], 0, :], color="orange")
-            ax[i, j].plot(f_axis, y_pre[ids[j], chs[i], 0, :], color="royalblue")
+            ax[i, j].plot(f_axis, y_rec_np[ids[j], chs[i], 0, :], color="orange")
+            ax[i, j].plot(f_axis, y_pre_np[ids[j], chs[i], 0, :], color="royalblue")
             ax[i, j].plot(
                 f_axis,
-                (y_rec + y_rec_var)[ids[j], chs[i], 0, :],
+                (y_rec_np + y_rec_var_np)[ids[j], chs[i], 0, :],
                 linestyle="dashed",
                 color="orange",
             )
             ax[i, j].plot(
                 f_axis,
-                (y_rec - y_rec_var)[ids[j], chs[i], 0, :],
+                (y_rec_np - y_rec_var_np)[ids[j], chs[i], 0, :],
                 linestyle="dashed",
                 color="orange",
             )
             ax[i, j].plot(
                 f_axis,
-                (y_pre + y_pre_var)[ids[j], chs[i], 0, :],
+                (y_pre_np + y_pre_var_np)[ids[j], chs[i], 0, :],
                 linestyle="dashed",
                 color="royalblue",
             )
             ax[i, j].plot(
                 f_axis,
-                (y_pre - y_pre_var)[ids[j], chs[i], 0, :],
+                (y_pre_np - y_pre_var_np)[ids[j], chs[i], 0, :],
                 linestyle="dashed",
                 color="royalblue",
             )

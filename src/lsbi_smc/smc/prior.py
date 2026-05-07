@@ -1,6 +1,5 @@
-from __future__ import annotations
-
 from collections.abc import Sequence
+from typing import Annotated
 
 import numpy as np
 import torch
@@ -42,17 +41,19 @@ class HierarchicalPrior:
         # current size of values.
         self.n_current = None
 
-    def collect(self) -> Tensor:
+    def collect(self) -> Annotated[Tensor, "(n, total_dim)"]:
         theta = [variable.values() for variable in self.variables]
         return torch.cat(theta, dim=-1)
 
-    def assign(self, theta: Tensor) -> None:
+    def assign(self, theta: Annotated[Tensor, "(n, total_dim)"]) -> None:
         n = len(theta)
         self.n_current = n
         for variable in self.variables:
             variable._values = theta[:, np.array(self.index) == variable.name]
 
-    def lp(self, values: Tensor | None = None) -> Tensor:
+    def lp(
+        self, values: Annotated[Tensor, "(n, total_dim)"] | None = None
+    ) -> Annotated[Tensor, "(n,)"]:
         if values is None:
             values = self.collect()
         else:
@@ -63,25 +64,28 @@ class HierarchicalPrior:
             lp += variable.lp(values[:, np.array(self.index) == variable.name])
         return lp[:, 0]
 
-    def sample(self, n: int = 1) -> Tensor:
+    def sample(self, n: int = 1) -> Annotated[Tensor, "(n, total_dim)"]:
         for variable in self.variables:
             variable.sample(n)
         self.n_current = n
         return self.collect()
 
-    def to_dict(self, values: Tensor | None = None) -> dict[str, Tensor]:
+    def to_dict(
+        self, values: Annotated[Tensor, "(n, total_dim)"] | None = None
+    ) -> dict[str, Annotated[Tensor, "(n, dim)"]]:
         if values is None:
             values = self.collect()
-        dic: dict[str, Tensor] = {}
+        dic: dict[str, Annotated[Tensor, "(n, dim)"]] = {}
         for variable in self.variables:
             dic[variable.name] = values[:, np.array(self.index) == variable.name]
         return dic
 
-    def check_support(self, values: Tensor) -> Tensor:
+    def check_support(
+        self, values: Annotated[Tensor, "(n, total_dim)"]
+    ) -> Annotated[Tensor, "(n,) bool"]:
         support_checks = []
         for variable in self.variables:
             check_result = variable.check_support(values[:, np.array(self.index) == variable.name])
             support_checks.append(check_result)
-        support_checks = torch.cat(support_checks, dim=-1)
-        support_checks = torch.prod(support_checks, dim=1).bool()
-        return support_checks
+        support_concat = torch.cat(support_checks, dim=-1)
+        return torch.prod(support_concat, dim=1).bool()
