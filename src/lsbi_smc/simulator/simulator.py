@@ -3,16 +3,14 @@ from __future__ import annotations
 import os
 from collections.abc import Callable
 from multiprocessing.dummy import Pool as ThreadPool
-from typing import Annotated
 
 import numpy as np
 
+from lsbi_smc.shapes import FRFArray, LHSamples, NDofVec, SimBatch
+
 
 class Simulator:
-    fun: Callable[
-        [Annotated[np.ndarray, "(ndof,)"]],
-        Annotated[np.ndarray, "(ndof, n_freq)"],
-    ]
+    fun: Callable[[NDofVec], FRFArray]
     chunksize: int
     llim: float
     ulim: float
@@ -20,10 +18,7 @@ class Simulator:
 
     def __init__(
         self,
-        fun: Callable[
-            [Annotated[np.ndarray, "(ndof,)"]],
-            Annotated[np.ndarray, "(ndof, n_freq)"],
-        ],
+        fun: Callable[[NDofVec], FRFArray],
         lims: list[float] | tuple[float, float],
         workers: int | None = None,
         chunksize: int = 8,
@@ -37,10 +32,7 @@ class Simulator:
         else:
             self.workers = workers
 
-    def __call__(
-        self,
-        theta: Annotated[np.ndarray, "(n, ndof)"],
-    ) -> Annotated[np.ndarray, "(n, ndof, 1, n_freq)"]:
+    def __call__(self, theta: LHSamples) -> SimBatch:
         theta = theta * (self.ulim - self.llim) + self.llim
         with ThreadPool(processes=self.workers) as pool:
             sims_list = pool.map(self.fun, list(theta), self.chunksize)

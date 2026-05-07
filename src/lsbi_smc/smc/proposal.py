@@ -1,8 +1,9 @@
-from typing import TYPE_CHECKING, Annotated
+from typing import TYPE_CHECKING
 
 import torch
 import torch.distributions as dist
-from torch import Tensor
+
+from lsbi_smc.shapes import LP, Cov, Pop
 
 if TYPE_CHECKING:
     from lsbi_smc.smc.smc import Particles
@@ -18,11 +19,7 @@ class ChingAndChenProposal:
     def __init__(self, b: float) -> None:
         self.b = b
 
-    def cov_proposal(
-        self,
-        pop: Annotated[Tensor, "(n, dim)"],
-        weights: Annotated[Tensor, "(n,)"],
-    ) -> Annotated[Tensor, "(dim, dim)"]:
+    def cov_proposal(self, pop: Pop, weights: LP) -> Cov:
         device = pop.device
         w = torch.nan_to_num(weights, nan=0.0, posinf=0.0, neginf=0.0)
         s = w.sum()
@@ -36,7 +33,7 @@ class ChingAndChenProposal:
         cov = cov * (self.b**2) + eps * torch.eye(pop.shape[1], device=device)
         return cov
 
-    def __call__(self, particles: "Particles") -> Annotated[Tensor, "(n, dim)"]:
+    def __call__(self, particles: "Particles") -> Pop:
         assert particles.weights is not None
         device = particles.pop.device
         cov = self.cov_proposal(particles.pop, particles.weights)

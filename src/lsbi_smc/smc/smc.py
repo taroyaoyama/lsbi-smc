@@ -1,9 +1,10 @@
-from typing import Annotated, Protocol
+from typing import Protocol
 
 import numpy as np
 import pandas as pd
 import torch
-from torch import Tensor
+
+from lsbi_smc.shapes import LP, FlatParticles, Mask, Pop, Theta, WeightVec
 
 
 class LikelihoodProtocol(Protocol):
@@ -11,7 +12,7 @@ class LikelihoodProtocol(Protocol):
 
     device: torch.device
 
-    def __call__(self, theta: Annotated[Tensor, "(n, dim)"]) -> Annotated[Tensor, "(n,)"]: ...
+    def __call__(self, theta: Theta) -> LP: ...
 
 
 class PriorProtocol(Protocol):
@@ -19,21 +20,17 @@ class PriorProtocol(Protocol):
 
     names: list[str]
 
-    def sample(self, n: int = 1) -> Annotated[Tensor, "(n, total_dim)"]: ...
+    def sample(self, n: int = 1) -> FlatParticles: ...
 
-    def lp(
-        self, values: Annotated[Tensor, "(n, total_dim)"] | None = None
-    ) -> Annotated[Tensor, "(n,)"]: ...
+    def lp(self, values: FlatParticles | None = None) -> LP: ...
 
-    def check_support(
-        self, values: Annotated[Tensor, "(n, total_dim)"]
-    ) -> Annotated[Tensor, "(n,) bool"]: ...
+    def check_support(self, values: FlatParticles) -> Mask: ...
 
 
 class ProposalProtocol(Protocol):
     """Protocol for MCMC proposal distributions."""
 
-    def __call__(self, particles: "Particles") -> Annotated[Tensor, "(n, dim)"]: ...
+    def __call__(self, particles: "Particles") -> Pop: ...
 
 
 class KernelProtocol(Protocol):
@@ -45,11 +42,7 @@ class KernelProtocol(Protocol):
         q: float,
         prior: PriorProtocol,
         likelihood: LikelihoodProtocol,
-    ) -> tuple[
-        Annotated[Tensor, "(n, dim)"],
-        Annotated[Tensor, "(n,)"],
-        Annotated[Tensor, "(n,) bool"],
-    ]: ...
+    ) -> tuple[Pop, LP, Mask]: ...
 
 
 class Particles:
@@ -57,14 +50,14 @@ class Particles:
     Class for particles.
     """
 
-    pop: Annotated[Tensor, "(n, dim)"]
+    pop: Pop
     dq: float
-    lp: Annotated[Tensor, "(n,)"] | None
-    weights: Annotated[Tensor, "(n,)"] | None
+    lp: LP | None
+    weights: LP | None
     dim: int
     size: int
 
-    def __init__(self, pop_ini: Annotated[Tensor, "(n, dim)"]) -> None:
+    def __init__(self, pop_ini: Pop) -> None:
         self.pop = pop_ini
         self.dq = 0.0
         self.lp = None
@@ -98,24 +91,19 @@ class Particles:
         self.pop = self.pop[idx]
         self.lp = self.lp[idx]
 
-    def replace(
-        self,
-        idx: Annotated[Tensor, "(n,) bool"],
-        pop_new: Annotated[Tensor, "(n, dim)"],
-        lp_new: Annotated[Tensor, "(n,)"],
-    ) -> None:
+    def replace(self, idx: Mask, pop_new: Pop, lp_new: LP) -> None:
         assert self.lp is not None
         self.pop[idx] = pop_new[idx]
         self.lp[idx] = lp_new[idx]
 
 
-def ess(weights_np: Annotated[np.ndarray, "(n,)"]) -> float:
+def ess(weights_np: WeightVec) -> float:
     s1 = weights_np.sum()
     s2 = (weights_np**2).sum()
     return float((s1 * s1) / s2)
 
 
-def _ess_from_lp(delta_q: float, lp_np: Annotated[np.ndarray, "(n,)"]) -> float:
+def _ess_from_lp(delta_q: float, lp_np: WeightVec) -> float:
     z = delta_q * lp_np
     z -= z.max()
     w = np.exp(z)
@@ -125,7 +113,7 @@ def _ess_from_lp(delta_q: float, lp_np: Annotated[np.ndarray, "(n,)"]) -> float:
 def _find_next_q(
     q_prev: float,
     q_tar: float,
-    lp_np: Annotated[np.ndarray, "(n,)"],
+    lp_np: WeightVec,
     ess_tar: float,
     tol: float = 1e-6,
     maxit: int = 50,
@@ -153,7 +141,7 @@ class SMC:
     likelihood: LikelihoodProtocol
     prior: PriorProtocol
     kernel: KernelProtocol
-    pops: list[Annotated[Tensor, "(n, dim)"]]
+    pops: list[Pop]
     q: list[float]
     q_tar: float
     device: torch.device
@@ -183,7 +171,7 @@ class SMC:
         self.particles.lp = self.likelihood(self.particles.pop).to(self.device)
         self.pops.append(pop_ini)
 
-    def assign_pop_ini(self, pop: Annotated[Tensor, "(n, dim)"]) -> None:
+    def assign_pop_ini(self, pop: Pop) -> None:
         pop = pop.to(self.device)
         self.particles = Particles(pop)
         self.particles.lp = self.likelihood(self.particles.pop).to(self.device)

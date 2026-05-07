@@ -1,21 +1,20 @@
-from typing import Annotated
-
 import torch
 import torch.nn as nn
-from torch import Tensor
+
+from lsbi_smc.shapes import LP, ObsFRF, ObsLatent, SimLatent, Theta
 
 
 def latent_space_loglik(
-    mu_obs: Annotated[Tensor, "(1, z_dim)"],
-    vr_obs: Annotated[Tensor, "(1, z_dim)"],
-    mu_sim: Annotated[Tensor, "(n, z_dim)"],
-    vr_sim: Annotated[Tensor, "(n, z_dim)"],
+    mu_obs: ObsLatent,
+    vr_obs: ObsLatent,
+    mu_sim: SimLatent,
+    vr_sim: SimLatent,
     alp: float = 0.0,
     tau: float = 1e-4,
     mu_pri: float = 0.0,
     vr_pri: float = 1.0,
     eps: float = 0.0,
-) -> Annotated[Tensor, "(n,)"]:
+) -> LP:
     """
     Latent-space-based likelihood approximation.
     """
@@ -46,15 +45,15 @@ class MVAEBasedLogLikelihood:
     device: torch.device
     enc_w: nn.Module
     enc_x: nn.Module
-    obs: Annotated[Tensor, "(1, ch, depth, n_freq)"]
-    mu_obs: Annotated[Tensor, "(1, z_dim)"]
-    vr_obs: Annotated[Tensor, "(1, z_dim)"]
+    obs: ObsFRF
+    mu_obs: ObsLatent
+    vr_obs: ObsLatent
 
     def __init__(
         self,
         enc_w: nn.Module,
         enc_x: nn.Module,
-        obs: Annotated[Tensor, "(1, ch, depth, n_freq)"],
+        obs: ObsFRF,
         device: torch.device,
     ) -> None:
         self.device = device
@@ -73,12 +72,7 @@ class MVAEBasedLogLikelihood:
         self.vr_obs = vr_obs
 
     @torch.no_grad()
-    def __call__(
-        self,
-        theta: Annotated[Tensor, "(n, ndof)"],
-        alp: float = 1.0,
-        tau: float = 0.0,
-    ) -> Annotated[Tensor, "(n,)"]:
+    def __call__(self, theta: Theta, alp: float = 1.0, tau: float = 0.0) -> LP:
         theta = theta.to(self.device)
         _, mu_sim, vr_sim = self.enc_w(theta)
         return latent_space_loglik(self.mu_obs, self.vr_obs, mu_sim, vr_sim, alp=alp, tau=tau)

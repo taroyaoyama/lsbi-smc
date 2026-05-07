@@ -10,16 +10,14 @@ from matplotlib.figure import Figure
 from torch import Tensor
 from torch.nn.utils import spectral_norm
 
+from lsbi_smc.shapes import FreqAxis, FRFArrayBatch, FRFTensor, Latent, Param, Scalar
+
 # ----------------
 # util
 # ----------------
 
 
-def reparameterization(
-    mean: Annotated[Tensor, "(batch, z_dim)"],
-    var: Annotated[Tensor, "(batch, z_dim)"],
-    device: torch.device,
-) -> Annotated[Tensor, "(batch, z_dim)"]:
+def reparameterization(mean: Latent, var: Latent, device: torch.device) -> Latent:
     epsilon = torch.randn_like(mean)
     return mean + torch.sqrt(var) * epsilon
 
@@ -29,32 +27,20 @@ def reparameterization(
 # --------------------
 
 
-def gauss_gauss_kl(
-    mean1: Annotated[Tensor, "(batch, z_dim)"],
-    var1: Annotated[Tensor, "(batch, z_dim)"],
-    mean2: Annotated[Tensor, "(batch, z_dim)"],
-    var2: Annotated[Tensor, "(batch, z_dim)"],
-) -> Annotated[Tensor, "()"]:
+def gauss_gauss_kl(mean1: Latent, var1: Latent, mean2: Latent, var2: Latent) -> Scalar:
     eps = 1e-8
     _var2 = var2 + eps
     _kl = torch.log(_var2) - torch.log(var1 + eps) + (var1 + (mean1 - mean2) ** 2) / _var2 - 1
     return 0.5 * torch.sum(_kl, dim=1).mean()
 
 
-def gauss_unitgauss_kl(
-    mean: Annotated[Tensor, "(batch, z_dim)"],
-    var: Annotated[Tensor, "(batch, z_dim)"],
-) -> Annotated[Tensor, "()"]:
+def gauss_unitgauss_kl(mean: Latent, var: Latent) -> Scalar:
     eps = 1e-8
     _kl = -0.5 * (1 + torch.log(var + eps) - mean**2 - var)
     return torch.sum(_kl, dim=1).mean()
 
 
-def rec_loss_norm_4d(
-    x: Annotated[Tensor, "(batch, ch, depth, size)"],
-    mean: Annotated[Tensor, "(batch, ch, depth, size)"],
-    var: Annotated[Tensor, "(batch, ch, depth, size)"],
-) -> Annotated[Tensor, "()"]:
+def rec_loss_norm_4d(x: FRFTensor, mean: FRFTensor, var: FRFTensor) -> Scalar:
     return -torch.mean(
         torch.sum(
             -0.5 * ((x - mean) ** 2 / var + torch.log(var) + torch.log(torch.tensor(2 * torch.pi))),
@@ -67,7 +53,7 @@ def rec_loss_norm_2d(
     x: Annotated[Tensor, "(batch, dim)"],
     mean: Annotated[Tensor, "(batch, dim)"],
     var: Annotated[Tensor, "(batch, dim)"],
-) -> Annotated[Tensor, "()"]:
+) -> Scalar:
     return -torch.mean(
         torch.sum(
             -0.5 * ((x - mean) ** 2 / var + torch.log(var) + torch.log(torch.tensor(2 * torch.pi))),
@@ -302,14 +288,7 @@ class Encoder(nn.Module):
 
         self._initialize_weights()
 
-    def forward(
-        self,
-        x: Annotated[Tensor, "(batch, ch, depth, size)"],
-    ) -> tuple[
-        Annotated[Tensor, "(batch, z_dim)"],
-        Annotated[Tensor, "(batch, z_dim)"],
-        Annotated[Tensor, "(batch, z_dim)"],
-    ]:
+    def forward(self, x: FRFTensor) -> tuple[Latent, Latent, Latent]:
         encoded = self.blocks(x)
         encoded = self.fc(encoded.view(-1, encoded.shape[1] * encoded.shape[2] * encoded.shape[3]))
         mu = self.mu(encoded)
@@ -343,14 +322,7 @@ class EncoderW(nn.Module):
         self.mu = nn.Sequential(nn.Linear(z_dim, z_dim))
         self.var = nn.Sequential(nn.Linear(z_dim, z_dim), nn.Softplus())
 
-    def forward(
-        self,
-        w: Annotated[Tensor, "(batch, n_label)"],
-    ) -> tuple[
-        Annotated[Tensor, "(batch, z_dim)"],
-        Annotated[Tensor, "(batch, z_dim)"],
-        Annotated[Tensor, "(batch, z_dim)"],
-    ]:
+    def forward(self, w: Param) -> tuple[Latent, Latent, Latent]:
         out = self.res_block1(w)
         out = self.res_block2(out)
         out = self.res_block3(out)
@@ -404,13 +376,7 @@ class Decoder(nn.Module):
 
         self._initialize_weights()
 
-    def forward(
-        self,
-        z: Annotated[Tensor, "(batch, z_dim)"],
-    ) -> tuple[
-        Annotated[Tensor, "(batch, ch, depth, size)"],
-        Annotated[Tensor, "(batch, ch, depth, size)"],
-    ]:
+    def forward(self, z: Latent) -> tuple[FRFTensor, FRFTensor]:
         xx = self.fc(z)
         decoded = self.blocks(xx.view(-1, self.ch * 2**5, self.depth, int(self.size / 2**5)))
         mu = self.decoder_mu(decoded)
@@ -438,31 +404,13 @@ class MVAE(nn.Module):
         self.dec = Decoder(z_dim, ch, size, depth)
 
     def encode(
-        self,
-        x: Annotated[Tensor, "(batch, ch, depth, size)"],
-        w: Annotated[Tensor, "(batch, n_label)"],
-    ) -> tuple[
-        Annotated[Tensor, "(batch, z_dim)"],
-        Annotated[Tensor, "(batch, z_dim)"],
-        Annotated[Tensor, "(batch, z_dim)"],
-        Annotated[Tensor, "(batch, z_dim)"],
-        Annotated[Tensor, "(batch, z_dim)"],
-        Annotated[Tensor, "(batch, z_dim)"],
-    ]:
+        self, x: FRFTensor, w: Param
+    ) -> tuple[Latent, Latent, Latent, Latent, Latent, Latent]:
         z1, mu1, var1 = self.enc_x(x)
         z2, mu2, var2 = self.enc_w(w)
         return z1, mu1, var1, z2, mu2, var2
 
-    def decode(
-        self,
-        z1: Annotated[Tensor, "(batch, z_dim)"],
-        z2: Annotated[Tensor, "(batch, z_dim)"],
-    ) -> tuple[
-        Annotated[Tensor, "(batch, ch, depth, size)"],
-        Annotated[Tensor, "(batch, ch, depth, size)"],
-        Annotated[Tensor, "(batch, ch, depth, size)"],
-        Annotated[Tensor, "(batch, ch, depth, size)"],
-    ]:
+    def decode(self, z1: Latent, z2: Latent) -> tuple[FRFTensor, FRFTensor, FRFTensor, FRFTensor]:
         x_mu1, x_var1 = self.dec(z1)
         x_mu2, x_var2 = self.dec(z2)
         return x_mu1, x_var1, x_mu2, x_var2
@@ -470,55 +418,34 @@ class MVAE(nn.Module):
     @overload
     def forward(
         self,
-        x: Annotated[Tensor, "(batch, ch, depth, size)"],
-        w: Annotated[Tensor, "(batch, n_label)"],
+        x: FRFTensor,
+        w: Param,
         return_loss: Literal[True],
         alp1: float = ...,
         alp2: float = ...,
         alp3: float = ...,
-    ) -> tuple[
-        Annotated[Tensor, "()"],
-        Annotated[Tensor, "()"],
-        Annotated[Tensor, "()"],
-    ]: ...
+    ) -> tuple[Scalar, Scalar, Scalar]: ...
 
     @overload
     def forward(
         self,
-        x: Annotated[Tensor, "(batch, ch, depth, size)"],
-        w: Annotated[Tensor, "(batch, n_label)"],
+        x: FRFTensor,
+        w: Param,
         return_loss: Literal[False] = ...,
         alp1: float = ...,
         alp2: float = ...,
         alp3: float = ...,
-    ) -> tuple[
-        Annotated[Tensor, "(batch, ch, depth, size)"],
-        Annotated[Tensor, "(batch, ch, depth, size)"],
-        Annotated[Tensor, "(batch, ch, depth, size)"],
-        Annotated[Tensor, "(batch, ch, depth, size)"],
-    ]: ...
+    ) -> tuple[FRFTensor, FRFTensor, FRFTensor, FRFTensor]: ...
 
     def forward(
         self,
-        x: Annotated[Tensor, "(batch, ch, depth, size)"],
-        w: Annotated[Tensor, "(batch, n_label)"],
+        x: FRFTensor,
+        w: Param,
         return_loss: bool = False,
         alp1: float = 1.0,
         alp2: float = 10.0,
         alp3: float = 10.0,
-    ) -> (
-        tuple[
-            Annotated[Tensor, "()"],
-            Annotated[Tensor, "()"],
-            Annotated[Tensor, "()"],
-        ]
-        | tuple[
-            Annotated[Tensor, "(batch, ch, depth, size)"],
-            Annotated[Tensor, "(batch, ch, depth, size)"],
-            Annotated[Tensor, "(batch, ch, depth, size)"],
-            Annotated[Tensor, "(batch, ch, depth, size)"],
-        ]
-    ):
+    ) -> tuple[Scalar, Scalar, Scalar] | tuple[FRFTensor, FRFTensor, FRFTensor, FRFTensor]:
         z1, mu1, var1, z2, mu2, var2 = self.encode(x, w)
         x_mu1, x_var1, x_mu2, x_var2 = self.decode(z1, z2)
 
@@ -539,17 +466,13 @@ class MVAE(nn.Module):
 
     def loss(
         self,
-        xo: Annotated[Tensor, "(batch, ch, depth, size)"],
-        xi: Annotated[Tensor, "(batch, ch, depth, size)"],
-        w: Annotated[Tensor, "(batch, n_label)"],
+        xo: FRFTensor,
+        xi: FRFTensor,
+        w: Param,
         alp1: float = 1.0,
         alp2: float = 10.0,
         alp3: float = 10.0,
-    ) -> tuple[
-        Annotated[Tensor, "()"],
-        Annotated[Tensor, "()"],
-        Annotated[Tensor, "()"],
-    ]:
+    ) -> tuple[Scalar, Scalar, Scalar]:
         z1, mu1, var1, z2, mu2, var2 = self.encode(xi, w)
         x_mu1, x_var1, x_mu2, x_var2 = self.decode(z1, z2)
         # KL terms
@@ -576,63 +499,27 @@ class VAE(nn.Module):
         self.enc = Encoder(z_dim, ch, size, depth)
         self.dec = Decoder(z_dim, ch, size, depth)
 
-    def encode(
-        self,
-        x: Annotated[Tensor, "(batch, ch, depth, size)"],
-    ) -> tuple[
-        Annotated[Tensor, "(batch, z_dim)"],
-        Annotated[Tensor, "(batch, z_dim)"],
-        Annotated[Tensor, "(batch, z_dim)"],
-    ]:
+    def encode(self, x: FRFTensor) -> tuple[Latent, Latent, Latent]:
         z, mu, var = self.enc(x)
         return z, mu, var
 
-    def decode(
-        self,
-        z: Annotated[Tensor, "(batch, z_dim)"],
-    ) -> tuple[
-        Annotated[Tensor, "(batch, ch, depth, size)"],
-        Annotated[Tensor, "(batch, ch, depth, size)"],
-    ]:
+    def decode(self, z: Latent) -> tuple[FRFTensor, FRFTensor]:
         x_mu, x_var = self.dec(z)
         return x_mu, x_var
 
     @overload
     def forward(
-        self,
-        x: Annotated[Tensor, "(batch, ch, depth, size)"],
-        return_loss: Literal[True],
-    ) -> tuple[
-        Annotated[Tensor, "()"],
-        Annotated[Tensor, "()"],
-        Annotated[Tensor, "()"],
-    ]: ...
+        self, x: FRFTensor, return_loss: Literal[True]
+    ) -> tuple[Scalar, Scalar, Scalar]: ...
 
     @overload
     def forward(
-        self,
-        x: Annotated[Tensor, "(batch, ch, depth, size)"],
-        return_loss: Literal[False] = ...,
-    ) -> tuple[
-        Annotated[Tensor, "(batch, ch, depth, size)"],
-        Annotated[Tensor, "(batch, ch, depth, size)"],
-    ]: ...
+        self, x: FRFTensor, return_loss: Literal[False] = ...
+    ) -> tuple[FRFTensor, FRFTensor]: ...
 
     def forward(
-        self,
-        x: Annotated[Tensor, "(batch, ch, depth, size)"],
-        return_loss: bool = False,
-    ) -> (
-        tuple[
-            Annotated[Tensor, "()"],
-            Annotated[Tensor, "()"],
-            Annotated[Tensor, "()"],
-        ]
-        | tuple[
-            Annotated[Tensor, "(batch, ch, depth, size)"],
-            Annotated[Tensor, "(batch, ch, depth, size)"],
-        ]
-    ):
+        self, x: FRFTensor, return_loss: bool = False
+    ) -> tuple[Scalar, Scalar, Scalar] | tuple[FRFTensor, FRFTensor]:
         # encode
         z, mu, var = self.encode(x)
         # decode
@@ -660,13 +547,7 @@ def plot_frf(
     ids: list[int],
     chs: list[int],
     model: MVAE,
-    loader: Iterable[
-        tuple[
-            Annotated[Tensor, "(batch, n_label)"],
-            Annotated[Tensor, "(batch, ch, depth, size)"],
-            Annotated[Tensor, "(batch, ch, depth, size)"],
-        ]
-    ],
+    loader: Iterable[tuple[Param, FRFTensor, FRFTensor]],
     dlf: float = 0.005,
 ) -> tuple[Figure, npt.NDArray[np.object_]]:
     device = next(model.parameters()).device
@@ -680,16 +561,12 @@ def plot_frf(
     with torch.no_grad():
         y_rec, y_rec_var, y_pre, y_pre_var = model(y, x)
     # to cpu, numpy
-    y_rec_np: Annotated[np.ndarray, "(batch, ch, depth, size)"] = y_rec.cpu().detach().numpy()
-    y_pre_np: Annotated[np.ndarray, "(batch, ch, depth, size)"] = y_pre.cpu().detach().numpy()
-    y_tar: Annotated[np.ndarray, "(batch, ch, depth, size)"] = yn.cpu().detach().numpy()
-    y_rec_var_np: Annotated[np.ndarray, "(batch, ch, depth, size)"] = (
-        y_rec_var.cpu().detach().numpy()
-    )
-    y_pre_var_np: Annotated[np.ndarray, "(batch, ch, depth, size)"] = (
-        y_pre_var.cpu().detach().numpy()
-    )
-    f_axis: Annotated[np.ndarray, "(size,)"] = np.arange(dlf, dlf * (y_rec_np.shape[-1] + 1), dlf)
+    y_rec_np: FRFArrayBatch = y_rec.cpu().detach().numpy()
+    y_pre_np: FRFArrayBatch = y_pre.cpu().detach().numpy()
+    y_tar: FRFArrayBatch = yn.cpu().detach().numpy()
+    y_rec_var_np: FRFArrayBatch = y_rec_var.cpu().detach().numpy()
+    y_pre_var_np: FRFArrayBatch = y_pre_var.cpu().detach().numpy()
+    f_axis: FreqAxis = np.arange(dlf, dlf * (y_rec_np.shape[-1] + 1), dlf)
     # plot
     nrow, ncol = len(chs), len(ids)
     fig, ax = plt.subplots(

@@ -1,19 +1,21 @@
-from typing import Annotated, Literal
+from typing import Literal
 
 import numpy as np
 import numpy.typing as npt
 from scipy.linalg import eigh
 
+from lsbi_smc.shapes import EigvecMat, FRFArray, NDofVec, TwoVec
+
 
 def frfshearm2(
     ks: npt.ArrayLike,
-    ms: Annotated[np.ndarray, "(ndof,)"] | float | int,
-    zeta: Annotated[np.ndarray, "(2,)"] | float | int,
+    ms: NDofVec | float | int,
+    zeta: TwoVec | float | int,
     damping: Literal["rayleigh", "stiffness"] = "rayleigh",
-    omega_target: Annotated[np.ndarray, "(2,)"] | None = None,
+    omega_target: TwoVec | None = None,
     dlf: float = 0.005,
     fmax: float = 5.12,
-) -> Annotated[np.ndarray, "(ndof, n_freq)"]:
+) -> FRFArray:
     """
     Frequency response function for an N-DOF shear building
     with Rayleigh damping: C = a0 M + a1 K.
@@ -88,11 +90,8 @@ def frfshearm2(
 
 def eigen(
     ks: npt.ArrayLike,
-    ms: Annotated[np.ndarray, "(ndof,)"] | float | int,
-) -> tuple[
-    Annotated[np.ndarray, "(ndof,)"],
-    Annotated[np.ndarray, "(ndof, ndof)"],
-]:
+    ms: NDofVec | float | int,
+) -> tuple[NDofVec, EigvecMat]:
     """
     Eigenvalue analysis
     """

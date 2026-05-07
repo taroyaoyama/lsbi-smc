@@ -1,18 +1,17 @@
-from typing import Annotated
-
 import numpy as np
 import torch
 from torch.utils.data import DataLoader, TensorDataset, random_split
 
 from lsbi_smc.example_shear4dof.mvae import MVAE
+from lsbi_smc.shapes import LHSamples, SimBatch
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # load .npz file & reshape
 npl = np.load("train_data.npz")
-x_sim: Annotated[np.ndarray, "(n_sim, ndof)"] = npl["x_sim"].astype(np.float32)
-y_sim: Annotated[np.ndarray, "(n_sim, ndof, 1, n_freq)"] = npl["y_sim"].astype(np.float32)
-y_sim_n: Annotated[np.ndarray, "(n_sim, ndof, 1, n_freq)"] = npl["y_sim_n"].astype(np.float32)
+x_sim: LHSamples = npl["x_sim"].astype(np.float32)
+y_sim: SimBatch = npl["y_sim"].astype(np.float32)
+y_sim_n: SimBatch = npl["y_sim_n"].astype(np.float32)
 del npl
 
 # convert to Tensor on GPU

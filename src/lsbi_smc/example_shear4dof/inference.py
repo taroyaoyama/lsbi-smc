@@ -1,15 +1,13 @@
-from typing import Annotated
-
 import numpy as np
 import torch
 import torch.distributions as dist
 from scipy import io
 from scipy.stats import norm
-from torch import Tensor
 
 from lsbi_smc.example_shear4dof.frfshearm import frfshearm2
 from lsbi_smc.example_shear4dof.mvae import MVAE
 from lsbi_smc.likelihood.latentlik import MVAEBasedLogLikelihood
+from lsbi_smc.shapes import LP, FRFArray, NDofVec, ObsFRF, ObsFRFArray, ObsParam, PostSamples, Theta
 from lsbi_smc.simulator.simulator import Simulator
 from lsbi_smc.smc.kernel import RWMetropolisKernel
 from lsbi_smc.smc.prior import HierarchicalPrior
@@ -39,7 +37,7 @@ model.eval()
 
 
 # simulator
-def fun(x: Annotated[np.ndarray, "(ndof,)"]) -> Annotated[np.ndarray, "(ndof, n_freq)"]:
+def fun(x: NDofVec) -> FRFArray:
     return frfshearm2(
         x * 1000,
         ms=1.0,
@@ -54,16 +52,14 @@ def fun(x: Annotated[np.ndarray, "(ndof,)"]) -> Annotated[np.ndarray, "(ndof, n_
 simulator = Simulator(fun, lims=[LLIM, ULIM], workers=2)
 
 # run
-x_obs: Annotated[np.ndarray, "(1, ndof)"] = np.full((1, ndof), (1.0 - LLIM) / (ULIM - LLIM)).astype(
-    np.float32
-)
-y_obs: Annotated[np.ndarray, "(1, 1, 1, n_freq)"] = simulator(x_obs)[:, [-1], :, :]
+x_obs: ObsParam = np.full((1, ndof), (1.0 - LLIM) / (ULIM - LLIM)).astype(np.float32)
+y_obs: ObsFRFArray = simulator(x_obs)[:, [-1], :, :]
 y_obs = y_obs + norm.rvs(size=y_obs.shape, random_state=101) * 0.20
 y_obs = (y_obs - y_mn) / y_sd
 y_obs = y_obs.astype(np.float32)
 
 # to torch
-y_obs_tc: Annotated[Tensor, "(1, 1, 1, n_freq)"] = torch.from_numpy(y_obs).to(device)
+y_obs_tc: ObsFRF = torch.from_numpy(y_obs).to(device)
 
 # --------------------
 # define likelihood
@@ -81,18 +77,13 @@ class LogLikelihood(MVAEBasedLogLikelihood):
         self,
         enc_w: torch.nn.Module,
         enc_x: torch.nn.Module,
-        obs: Annotated[Tensor, "(1, ch, depth, n_freq)"],
+        obs: ObsFRF,
         device: torch.device,
     ) -> None:
         super().__init__(enc_w, enc_x, obs, device)
         self.n_call = 0
 
-    def __call__(
-        self,
-        theta: Annotated[Tensor, "(n, ndof)"],
-        alp: float = 1.0,
-        tau: float = 0.00,
-    ) -> Annotated[Tensor, "(n,)"]:
+    def __call__(self, theta: Theta, alp: float = 1.0, tau: float = 0.00) -> LP:
         theta = stdnorm.cdf(theta)
         self.n_call += len(theta)
         return super().__call__(theta, alp=1.0, tau=0.00)
@@ -129,7 +120,7 @@ smc1 = SMC(
 smc1.run(ess_tar_ratio=0.8, mcmc_iter=10)
 
 # extract posterior samples
-pop: Annotated[np.ndarray, "(pop_size, ndof)"] = smc1.pops[-1].detach().cpu().numpy()
+pop: PostSamples = smc1.pops[-1].detach().cpu().numpy()
 pop = norm.cdf(pop)
 pop = pop * (ULIM - LLIM) + LLIM
 

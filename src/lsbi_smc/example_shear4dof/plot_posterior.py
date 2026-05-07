@@ -1,13 +1,13 @@
 """Visualize posterior samples from posterior.mat."""
 
-from typing import Annotated
-
 import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
 import numpy as np
 import scipy.io as sio
 from matplotlib.figure import Figure
 from matplotlib.ticker import MaxNLocator
+
+from lsbi_smc.shapes import PostSamples
 
 MAT_PATH = "posterior.mat"
 OUT_PATH = "posterior_plot.png"
@@ -26,12 +26,12 @@ EQUIV_SOLUTIONS = {
 EQUIV_COLORS = ["#E69F00", "#56B4E9", "#009E73"]
 
 
-def load_pop() -> Annotated[np.ndarray, "(pop_size, ndof)"]:
+def load_pop() -> PostSamples:
     data = sio.loadmat(MAT_PATH)
     return data["pop"]  # (2000, 4)
 
 
-def plot_corner(pop: Annotated[np.ndarray, "(pop_size, ndof)"]) -> Figure:
+def plot_corner(pop: PostSamples) -> Figure:
     n_params = pop.shape[1]
     fig = plt.figure(figsize=(12, 12))
     fig.suptitle(
@@ -179,7 +179,7 @@ def plot_corner(pop: Annotated[np.ndarray, "(pop_size, ndof)"]) -> Figure:
     return fig
 
 
-def print_summary(pop: Annotated[np.ndarray, "(pop_size, ndof)"]) -> None:
+def print_summary(pop: PostSamples) -> None:
     print(f"{'Param':<6} {'Mean':>8} {'Std':>8} {'2.5%':>8} {'50%':>8} {'97.5%':>8}")
     print("-" * 46)
     for i, name in enumerate(PARAM_NAMES):

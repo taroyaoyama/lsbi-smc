@@ -1,8 +1,9 @@
-from typing import TYPE_CHECKING, Annotated
+from typing import TYPE_CHECKING
 
 import torch
 import torch.distributions as dist
-from torch import Tensor
+
+from lsbi_smc.shapes import LP, Mask, Pop
 
 if TYPE_CHECKING:
     from lsbi_smc.smc.smc import LikelihoodProtocol, Particles, PriorProtocol, ProposalProtocol
@@ -24,11 +25,7 @@ class RWMetropolisKernel:
         q: float,
         prior: "PriorProtocol",
         likelihood: "LikelihoodProtocol",
-    ) -> tuple[
-        Annotated[Tensor, "(n, dim)"],
-        Annotated[Tensor, "(n,)"],
-        Annotated[Tensor, "(n,) bool"],
-    ]:
+    ) -> tuple[Pop, LP, Mask]:
         device = particles.pop.device
         pop_new = self.proposal(particles).to(device)
 
@@ -71,18 +68,12 @@ class HMCKernel:
         q: float,
         prior: "PriorProtocol",
         likelihood: "LikelihoodProtocol",
-    ) -> tuple[
-        Annotated[Tensor, "(n, dim)"],
-        Annotated[Tensor, "(n,)"],
-        Annotated[Tensor, "(n,) bool"],
-    ]:
+    ) -> tuple[Pop, LP, Mask]:
         device = particles.pop.device
         dtype = particles.pop.dtype
         b_size, n_dim = particles.pop.shape
 
-        def potential_energy(
-            th: Annotated[Tensor, "(n, dim)"],
-        ) -> Annotated[Tensor, "(n,)"]:
+        def potential_energy(th: Pop) -> LP:
             lp = q * likelihood(th) + prior.lp(th)
             return -lp
 

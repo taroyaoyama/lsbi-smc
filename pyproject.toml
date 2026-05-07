@@ -45,4 +45,7 @@ skip-magic-trailing-comma = false
 
 [tool.ruff.lint]
 select = ["E", "F", "UP", "B", "SIM", "I", "N", "A", "Q"]
-ignore = ["A003", "Q003"]
+# UP040: prefers PEP 695 `type X = ...`. We keep `X: TypeAlias = ...` because
+# Pylance/Pyright resolves PEP 695 `TypeAliasType` inconsistently for Tensor
+# operator methods (intermittent diagnostics on `*`, etc.).
+ignore = ["A003", "Q003", "UP040"]

@@ -1,13 +1,15 @@
-from typing import Annotated, Protocol, cast
+from typing import Protocol, cast
 
 import numpy.typing as npt
 import torch
 import torch.distributions as dist
 from torch import Tensor
 
+from lsbi_smc.shapes import ConstantVal, DistMask, DistVal
+
 
 class ConstantVector:
-    _values: Annotated[Tensor, "(1, dim)"]
+    _values: ConstantVal
     depth: int
     dim: int
 
@@ -24,9 +26,7 @@ class ConstantVector:
         self.depth = 0
         self.dim = self._values.shape[1]
 
-    def values(
-        self, n: int = 1, device: torch.device | str | None = None
-    ) -> Annotated[Tensor, "(n, dim)"]:
+    def values(self, n: int = 1, device: torch.device | str | None = None) -> DistVal:
         v = torch.tile(self._values, (n, 1))
         if device is not None:
             v = v.to(device)
@@ -43,7 +43,7 @@ class Uniform:
     Class for Uniform random variables.
     """
 
-    _values: Annotated[Tensor, "(n, dim)"] | None
+    _values: DistVal | None
     name: str
     parents: list[ConstantVector]
     depth: int
@@ -60,7 +60,7 @@ class Uniform:
         self.upper = upper
         self.dim = self.lower.dim
 
-    def values(self, n: int | None = None) -> Annotated[Tensor, "(n, dim)"]:
+    def values(self, n: int | None = None) -> DistVal:
         if self._values is None:
             raise ValueError(
                 "Error: self.values is not initialized. Call sample() before accessing values."
@@ -69,7 +69,7 @@ class Uniform:
             raise ValueError(f"Error: Expected {n} samples, but got {len(self._values)}.")
         return self._values
 
-    def sample(self, n: int, detach: bool = False) -> Annotated[Tensor, "(n, dim)"] | None:
+    def sample(self, n: int, detach: bool = False) -> DistVal | None:
         device = self.lower._values.device if hasattr(self.lower, "_values") else None
         lv = self.lower.values(n, device=device)
         uv = self.upper.values(n, device=device)
@@ -80,9 +80,7 @@ class Uniform:
         self._values = values
         return None
 
-    def lp(
-        self, values: Annotated[Tensor, "(n, dim)"] | None = None
-    ) -> Annotated[Tensor, "(n, dim)"]:
+    def lp(self, values: DistVal | None = None) -> DistVal:
         if values is None:
             values = self.values()
         n = len(values)
@@ -91,9 +89,7 @@ class Uniform:
         sampler = dist.Uniform(lv, uv)
         return sampler.log_prob(values)
 
-    def check_support(
-        self, values: Annotated[Tensor, "(n, dim)"]
-    ) -> Annotated[Tensor, "(n, dim) bool"]:
+    def check_support(self, values: DistVal) -> DistMask:
         n = len(values)
         lv = self.lower.values(n, device=values.device)
         uv = self.upper.values(n, device=values.device)
@@ -105,7 +101,7 @@ class Normal:
     Class for Normal random variables.
     """
 
-    _values: Annotated[Tensor, "(n, dim)"] | None
+    _values: DistVal | None
     name: str
     parents: list[ConstantVector]
     depth: int
@@ -122,7 +118,7 @@ class Normal:
         self.sg = sg
         self.dim = self.mu.dim
 
-    def values(self, n: int | None = None) -> Annotated[Tensor, "(n, dim)"]:
+    def values(self, n: int | None = None) -> DistVal:
         if self._values is None:
             raise ValueError(
                 "Error: self.values is not initialized. Call sample() before accessing values."
@@ -131,7 +127,7 @@ class Normal:
             raise ValueError(f"Error: Expected {n} samples, but got {len(self._values)}.")
         return self._values
 
-    def sample(self, n: int, detach: bool = False) -> Annotated[Tensor, "(n, dim)"] | None:
+    def sample(self, n: int, detach: bool = False) -> DistVal | None:
         mv = self.mu.values(n)
         sv = self.sg.values(n)
         if sv.device != mv.device:
@@ -143,9 +139,7 @@ class Normal:
         self._values = values
         return None
 
-    def lp(
-        self, values: Annotated[Tensor, "(n, dim)"] | None = None
-    ) -> Annotated[Tensor, "(n, dim)"]:
+    def lp(self, values: DistVal | None = None) -> DistVal:
         if values is None:
             values = self.values()
         n = len(values)
@@ -158,9 +152,7 @@ class Normal:
         sampler = dist.Normal(mv, sv)
         return sampler.log_prob(values)
 
-    def check_support(
-        self, values: Annotated[Tensor, "(n, dim)"]
-    ) -> Annotated[Tensor, "(n, dim) bool"]:
+    def check_support(self, values: DistVal) -> DistMask:
         return torch.ones_like(values, dtype=torch.bool, device=values.device)
 
 
@@ -172,7 +164,7 @@ class HalfNormal(Normal):
     def __init__(self, name: str, sg: ConstantVector) -> None:
         super().__init__(name, Constant(0.0), sg)
 
-    def sample(self, n: int, detach: bool = False) -> Annotated[Tensor, "(n, dim)"] | None:
+    def sample(self, n: int, detach: bool = False) -> DistVal | None:
         sv = self.sg.values(n)
         sampler = dist.HalfNormal(sv)
         values = cast(Tensor, sampler.sample((1,)))[0]
@@ -181,9 +173,7 @@ class HalfNormal(Normal):
         self._values = values
         return None
 
-    def lp(
-        self, values: Annotated[Tensor, "(n, dim)"] | None = None
-    ) -> Annotated[Tensor, "(n, dim)"]:
+    def lp(self, values: DistVal | None = None) -> DistVal:
         if values is None:
             values = self.values()
         n = len(values)
@@ -193,9 +183,7 @@ class HalfNormal(Normal):
         sampler = dist.HalfNormal(sv)
         return sampler.log_prob(values)
 
-    def check_support(
-        self, values: Annotated[Tensor, "(n, dim)"]
-    ) -> Annotated[Tensor, "(n, dim) bool"]:
+    def check_support(self, values: DistVal) -> DistMask:
         return values >= 0
 
 
@@ -204,7 +192,7 @@ class Laplace:
     Class for Laplace random variables.
     """
 
-    _values: Annotated[Tensor, "(n, dim)"] | None
+    _values: DistVal | None
     name: str
     parents: list[ConstantVector]
     depth: int
@@ -224,7 +212,7 @@ class Laplace:
         self.b = b  # scale (>0)
         self.dim = self.mu.dim
 
-    def values(self, n: int | None = None) -> Annotated[Tensor, "(n, dim)"]:
+    def values(self, n: int | None = None) -> DistVal:
         if self._values is None:
             raise ValueError(
                 "Error: self.values is not initialized. Call sample() before accessing values."
@@ -233,7 +221,7 @@ class Laplace:
             raise ValueError(f"Error: Expected {n} samples, but got {len(self._values)}.")
         return self._values
 
-    def sample(self, n: int, detach: bool = False) -> Annotated[Tensor, "(n, dim)"] | None:
+    def sample(self, n: int, detach: bool = False) -> DistVal | None:
         mv = self.mu.values(n)
         bv = self.b.values(n)
         if bv.device != mv.device:
@@ -247,9 +235,7 @@ class Laplace:
         self._values = values
         return None
 
-    def lp(
-        self, values: Annotated[Tensor, "(n, dim)"] | None = None
-    ) -> Annotated[Tensor, "(n, dim)"]:
+    def lp(self, values: DistVal | None = None) -> DistVal:
         if values is None:
             values = self.values()
         n = len(values)
@@ -265,9 +251,7 @@ class Laplace:
         sampler = dist.Laplace(mv, bv)
         return sampler.log_prob(values)
 
-    def check_support(
-        self, values: Annotated[Tensor, "(n, dim)"]
-    ) -> Annotated[Tensor, "(n, dim) bool"]:
+    def check_support(self, values: DistVal) -> DistMask:
         return torch.ones_like(values, dtype=torch.bool, device=values.device)
 
 
@@ -276,7 +260,7 @@ class Exponential:
     Class for Exponential random variables.
     """
 
-    _values: Annotated[Tensor, "(n, dim)"] | None
+    _values: DistVal | None
     name: str
     parents: list[ConstantVector]
     depth: int
@@ -291,7 +275,7 @@ class Exponential:
         self.rate = rate
         self.dim = self.rate.dim
 
-    def values(self, n: int | None = None) -> Annotated[Tensor, "(n, dim)"]:
+    def values(self, n: int | None = None) -> DistVal:
         if self._values is None:
             raise ValueError(
                 "Error: self.values is not initialized. Call sample() before accessing values."
@@ -300,7 +284,7 @@ class Exponential:
             raise ValueError(f"Error: Expected {n} samples, but got {len(self._values)}.")
         return self._values
 
-    def sample(self, n: int, detach: bool = False) -> Annotated[Tensor, "(n, dim)"] | None:
+    def sample(self, n: int, detach: bool = False) -> DistVal | None:
         rv = self.rate.values(n)
         sampler = dist.Exponential(rv)
         values = sampler.sample((1,))[0]  # shape: (n, dim)
@@ -309,9 +293,7 @@ class Exponential:
         self._values = values
         return None
 
-    def lp(
-        self, values: Annotated[Tensor, "(n, dim)"] | None = None
-    ) -> Annotated[Tensor, "(n, dim)"]:
+    def lp(self, values: DistVal | None = None) -> DistVal:
         if values is None:
             values = self.values()
         n = len(values)
@@ -321,9 +303,7 @@ class Exponential:
         sampler = dist.Exponential(rv)
         return sampler.log_prob(values)
 
-    def check_support(
-        self, values: Annotated[Tensor, "(n, dim)"]
-    ) -> Annotated[Tensor, "(n, dim) bool"]:
+    def check_support(self, values: DistVal) -> DistMask:
         return values >= 0
 
 
@@ -333,16 +313,12 @@ class DistVar(Protocol):
     depth: int
     dim: int
     name: str
-    _values: Annotated[Tensor, "(n, dim)"] | None
+    _values: DistVal | None
 
-    def values(self, n: int | None = None) -> Annotated[Tensor, "(n, dim)"]: ...
+    def values(self, n: int | None = None) -> DistVal: ...
 
-    def sample(self, n: int, detach: bool = False) -> Annotated[Tensor, "(n, dim)"] | None: ...
+    def sample(self, n: int, detach: bool = False) -> DistVal | None: ...
 
-    def lp(
-        self, values: Annotated[Tensor, "(n, dim)"] | None = None
-    ) -> Annotated[Tensor, "(n, dim)"]: ...
+    def lp(self, values: DistVal | None = None) -> DistVal: ...
 
-    def check_support(
-        self, values: Annotated[Tensor, "(n, dim)"]
-    ) -> Annotated[Tensor, "(n, dim) bool"]: ...
+    def check_support(self, values: DistVal) -> DistMask: ...
