@@ -1,7 +1,7 @@
 # smc.py — Sequential Monte Carlo サンプラー
 
 **ファイルパス**: `src/lsbi_smc/smc/smc.py`  
-**関連学術ドキュメント**: [06_smc.md](../06_smc.md), [01_math_prerequisites.md](../01_math_prerequisites.md)
+**関連学術ドキュメント**: [07_smc.md](../07_smc.md), [02_probability.md](../02_probability.md)
 
 ---
 

@@ -1,7 +1,7 @@
 # plot_posterior.py — 事後分布の可視化
 
 **ファイルパス**: `src/lsbi_smc/example_shear4dof/plot_posterior.py`  
-**関連学術ドキュメント**: [06_smc.md](../06_smc.md)
+**関連学術ドキュメント**: [07_smc.md](../07_smc.md)
 
 ---
 

@@ -8,7 +8,7 @@
 
 **目標**：$\theta$ と $x$ を同じ潜在空間 $z$ に埋め込み、「どちらからでも同じ latent が得られる」関係を学ぶ。
 
-なぜこれが必要かは [05_latent_likelihood.md](05_latent_likelihood.md) で説明する。
+なぜこれが必要かは [06_latent_likelihood.md](06_latent_likelihood.md) で説明する。
 
 ---
 

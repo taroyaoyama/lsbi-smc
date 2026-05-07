@@ -458,10 +458,10 @@ FRF データ (x)           構造パラメータ (θ)
 
 $$\mathcal{L}_{\text{MVAE}} = \underbrace{\mathcal{L}_{\text{recon}}}_{\text{再構成}} + \underbrace{D_{\text{KL}}(q(z|x) \| q(z|\theta))}_{\text{enc\_x ↔ enc\_w を揃える}} + \underbrace{D_{\text{KL}}(q(z|\theta) \| q(z|x))}_{\text{逆向きも揃える}}$$
 
-- KL は非対称（`01_math_prerequisites.md` §4 参照）なので、両方向の項を足すことで「どちらの方向からでも一致するよう」学習させる
+- KL は非対称（`02_probability.md` §4 参照）なので、両方向の項を足すことで「どちらの方向からでも一致するよう」学習させる
 - これが通常の VAE の KL 項（潜在分布を $\mathcal{N}(0,I)$ に近づける）と異なるMVAE固有の設計
 
-詳細は [04_mvae.md](04_mvae.md) を参照。
+詳細は [05_mvae.md](05_mvae.md) を参照。
 
 ---
 

@@ -1,7 +1,7 @@
 # variables.py — 確率変数クラス群
 
 **ファイルパス**: `src/lsbi_smc/smc/variables.py`  
-**関連学術ドキュメント**: [01_math_prerequisites.md](../01_math_prerequisites.md), [06_smc.md](../06_smc.md)
+**関連学術ドキュメント**: [02_probability.md](../02_probability.md), [07_smc.md](../07_smc.md)
 
 ---
 

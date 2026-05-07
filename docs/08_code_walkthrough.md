@@ -72,12 +72,13 @@
 | 学術ドキュメント | 対応するコード |
 |----------------|--------------|
 | [00_overview.md](00_overview.md) — 全体概要 | プロジェクト全体 |
-| [01_math_prerequisites.md](01_math_prerequisites.md) — ベイズ統計の基礎 | [variables.py](code/variables.md), [prior.py](code/prior.md), [smc.py](code/smc.md) |
-| [02_ml_prerequisites.md](02_ml_prerequisites.md) — 深層学習・VAEの基礎 | [mvae.py](code/mvae.md), [train.py](code/train.md) |
-| [03_structural_engineering.md](03_structural_engineering.md) — 構造工学の背景 | [frfshearm.py](code/frfshearm.md), [simulator.py](code/simulator.md), [create_dataset.py](code/create_dataset.md) |
-| [04_mvae.md](04_mvae.md) — Multimodal VAE | [mvae.py](code/mvae.md), [train.py](code/train.md) |
-| [05_latent_likelihood.md](05_latent_likelihood.md) — 潜在空間ベース尤度 | [latentlik.py](code/latentlik.md), [inference.py](code/inference.md) |
-| [06_smc.md](06_smc.md) — Sequential Monte Carlo | [smc.py](code/smc.md), [kernel.py](code/kernel.md), [proposal.py](code/proposal.md), [prior.py](code/prior.md), [variables.py](code/variables.md) |
+| [01_linear_algebra.md](01_linear_algebra.md) — 線形代数・NumPy/SciPy | [frfshearm.py](code/frfshearm.md), [simulator.py](code/simulator.md), 各コード共通 |
+| [02_probability.md](02_probability.md) — ベイズ統計の基礎 | [variables.py](code/variables.md), [prior.py](code/prior.md), [smc.py](code/smc.md) |
+| [03_ml_prerequisites.md](03_ml_prerequisites.md) — 深層学習・VAEの基礎 | [mvae.py](code/mvae.md), [train.py](code/train.md) |
+| [04_structural_engineering.md](04_structural_engineering.md) — 構造工学の背景 | [frfshearm.py](code/frfshearm.md), [simulator.py](code/simulator.md), [create_dataset.py](code/create_dataset.md) |
+| [05_mvae.md](05_mvae.md) — Multimodal VAE | [mvae.py](code/mvae.md), [train.py](code/train.md) |
+| [06_latent_likelihood.md](06_latent_likelihood.md) — 潜在空間ベース尤度 | [latentlik.py](code/latentlik.md), [inference.py](code/inference.md) |
+| [07_smc.md](07_smc.md) — Sequential Monte Carlo | [smc.py](code/smc.md), [kernel.py](code/kernel.md), [proposal.py](code/proposal.md), [prior.py](code/prior.md), [variables.py](code/variables.md) |
 
 ---
 

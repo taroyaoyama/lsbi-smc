@@ -1,7 +1,7 @@
 # proposal.py — Ching & Chen 提案分布
 
 **ファイルパス**: `src/lsbi_smc/smc/proposal.py`  
-**関連学術ドキュメント**: [06_smc.md](../06_smc.md)
+**関連学術ドキュメント**: [07_smc.md](../07_smc.md)
 
 ---
 

@@ -1,7 +1,7 @@
 # simulator.py — シミュレーター並列ラッパー
 
 **ファイルパス**: `src/lsbi_smc/simulator/simulator.py`  
-**関連学術ドキュメント**: [03_structural_engineering.md](../03_structural_engineering.md)
+**関連学術ドキュメント**: [04_structural_engineering.md](../04_structural_engineering.md)
 
 ---
 

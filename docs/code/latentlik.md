@@ -1,7 +1,7 @@
 # latentlik.py — 潜在空間ベース対数尤度
 
 **ファイルパス**: `src/lsbi_smc/likelihood/latentlik.py`  
-**関連学術ドキュメント**: [05_latent_likelihood.md](../05_latent_likelihood.md)
+**関連学術ドキュメント**: [06_latent_likelihood.md](../06_latent_likelihood.md)
 
 ---
 
@@ -15,7 +15,7 @@
 
 ## 数学的背景
 
-詳細な導出は [05_latent_likelihood.md](../05_latent_likelihood.md) を参照。要約すると：
+詳細な導出は [06_latent_likelihood.md](../06_latent_likelihood.md) を参照。要約すると：
 
 $$\hat{L}(\theta; x_{\text{obs}}) = \int_Z \frac{q_{\phi_x}(z | x_{\text{obs}}) \cdot q_{\phi_\theta}(z | \theta)}{p(z)} dz$$
 
@@ -174,4 +174,4 @@ def __call__(self, theta: Tensor, alp=1.0, tau=0.0) -> Tensor:
 | `alp=1.0` | 1.0 | `vr_sim` を2倍にスケール → モデル誤差を吸収する余裕を持たせる |
 | `tau=0.0` | 0.0 | 最小分散の付加なし（クランプで十分な数値安定性） |
 
-詳細は [05_latent_likelihood.md](../05_latent_likelihood.md) を参照。
+詳細は [06_latent_likelihood.md](../06_latent_likelihood.md) を参照。

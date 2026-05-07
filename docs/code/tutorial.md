@@ -44,7 +44,7 @@
 ### 📖 読むドキュメント
 
 1. **[../00_overview.md](../00_overview.md)** — プロジェクト全体の概要、なぜ必要なのかを理解
-2. **[../07_code_walkthrough.md](../07_code_walkthrough.md)** — ファイル構成と依存関係の俯瞰
+2. **[../08_code_walkthrough.md](../08_code_walkthrough.md)** — ファイル構成と依存関係の俯瞰
 
 ### 💻 軽く眺めるコード
 
@@ -59,11 +59,22 @@ find src/lsbi_smc -type f -name "*.py" | sort
 
 ## Phase 1: 前提知識の確認（必要に応じて）
 
+### 1-0. 線形代数・NumPy/SciPy の基礎
+
+ベクトル・行列演算、固有値問題、ブロードキャスティングの理解が浅い場合：
+
+📖 **[../01_linear_algebra.md](../01_linear_algebra.md)** を読む
+
+キーワード:
+- 一般化固有値問題（`scipy.linalg.eigh(K, M)`）
+- ブロードキャスティング（`[:, None]` イディオム）
+- Cholesky 分解、対数スケールでの数値安定性
+
 ### 1-1. 数学・ベイズ統計の基礎
 
 ベイズの定理、MCMC、事後分布などの理解が浅い場合：
 
-📖 **[../01_math_prerequisites.md](../01_math_prerequisites.md)** を読む
+📖 **[../02_probability.md](../02_probability.md)** を読む
 
 キーワード:
 - 事前分布、尤度、事後分布
@@ -74,7 +85,7 @@ find src/lsbi_smc -type f -name "*.py" | sort
 
 VAE（変分オートエンコーダ）の理解が浅い場合：
 
-📖 **[../02_ml_prerequisites.md](../02_ml_prerequisites.md)** を読む
+📖 **[../03_ml_prerequisites.md](../03_ml_prerequisites.md)** を読む
 
 キーワード:
 - エンコーダ・デコーダ
@@ -86,7 +97,7 @@ VAE（変分オートエンコーダ）の理解が浅い場合：
 
 FRF・固有値解析・レイリー減衰の理解が浅い場合：
 
-📖 **[../03_structural_engineering.md](../03_structural_engineering.md)** を読む
+📖 **[../04_structural_engineering.md](../04_structural_engineering.md)** を読む
 
 キーワード:
 - せん断建物モデル
@@ -143,7 +154,7 @@ FRF・固有値解析・レイリー減衰の理解が浅い場合：
 
 ### 3-1. 学術的背景
 
-📖 **[../04_mvae.md](../04_mvae.md)** — MVAE の数式と設計思想
+📖 **[../05_mvae.md](../05_mvae.md)** — MVAE の数式と設計思想
 
 **重要な疑問**:
 - なぜ「Multimodal」なのか？
@@ -190,7 +201,7 @@ LSBI-SMC の最も革新的な部分。**潜在空間ベース尤度** と **SMC
 
 ### 4-1. 潜在空間ベース尤度の理論
 
-📖 **[../05_latent_likelihood.md](../05_latent_likelihood.md)** — 数学的導出
+📖 **[../06_latent_likelihood.md](../06_latent_likelihood.md)** — 数学的導出
 
 **重要な疑問**:
 - なぜ高次元 FRF の尤度が直接計算できないのか？
@@ -209,7 +220,7 @@ LSBI-SMC の最も革新的な部分。**潜在空間ベース尤度** と **SMC
 
 ### 4-3. SMC の理論
 
-📖 **[../06_smc.md](../06_smc.md)** — Sequential Monte Carlo の原理
+📖 **[../07_smc.md](../07_smc.md)** — Sequential Monte Carlo の原理
 
 **重要な疑問**:
 - なぜ普通のMCMCではダメなのか？（多峰性、高次元）
@@ -329,20 +340,20 @@ uv run python src/lsbi_smc/example_shear4dof/plot_posterior.py
 
 ```
 [Phase 0]  全体概要 (30分)
-   00_overview → 07_code_walkthrough
+   00_overview → 08_code_walkthrough
                    ↓
 [Phase 1]  前提知識（必要に応じて）
-   01_math / 02_ml / 03_structural_engineering
+   01_linear_algebra / 02_probability / 03_ml_prerequisites / 04_structural_engineering
                    ↓
 [Phase 2]  Step 1 のコード (45分)
    frfshearm → simulator → create_dataset
                    ↓
 [Phase 3]  Step 2 のコード (90分)
-   04_mvae → mvae.py → train.py
+   05_mvae → mvae.py → train.py
                    ↓
 [Phase 4]  Step 3 のコード (120分)
-   05_latent_likelihood → latentlik.py
-   06_smc → variables → prior → proposal → kernel → smc → inference
+   06_latent_likelihood → latentlik.py
+   07_smc → variables → prior → proposal → kernel → smc → inference
                    ↓
 [Phase 5]  可視化 (30分)
    plot_posterior
@@ -359,13 +370,13 @@ uv run python src/lsbi_smc/example_shear4dof/plot_posterior.py
 
 | つまずき | 対策 |
 |---------|------|
-| FRF の物理的な意味がわからない | [03_structural_engineering.md](../03_structural_engineering.md) を再読 |
-| なぜ 2 つのエンコーダが必要かピンと来ない | [04_mvae.md](../04_mvae.md) Section 1 を再読 |
-| 潜在空間で尤度が計算できる理屈がわからない | [05_latent_likelihood.md](../05_latent_likelihood.md) Section 2-3 を再読 |
-| CDF 変換の意味がわからない | [05_latent_likelihood.md](../05_latent_likelihood.md) Section 6、[inference.md](inference.md) を再読 |
-| なぜ RW-MH ではなく SMC を使うのか | [06_smc.md](../06_smc.md) Section 1 を再読 |
-| ESS と β の関係がわからない | [06_smc.md](../06_smc.md) Section 3、[smc.md](smc.md) を再読 |
-| データの形状がよくわからない | [07_code_walkthrough.md](../07_code_walkthrough.md) Section 5 を確認 |
+| FRF の物理的な意味がわからない | [04_structural_engineering.md](../04_structural_engineering.md) を再読 |
+| なぜ 2 つのエンコーダが必要かピンと来ない | [05_mvae.md](../05_mvae.md) Section 1 を再読 |
+| 潜在空間で尤度が計算できる理屈がわからない | [06_latent_likelihood.md](../06_latent_likelihood.md) Section 2-3 を再読 |
+| CDF 変換の意味がわからない | [06_latent_likelihood.md](../06_latent_likelihood.md) Section 6、[inference.md](inference.md) を再読 |
+| なぜ RW-MH ではなく SMC を使うのか | [07_smc.md](../07_smc.md) Section 1 を再読 |
+| ESS と β の関係がわからない | [07_smc.md](../07_smc.md) Section 3、[smc.md](smc.md) を再読 |
+| データの形状がよくわからない | [08_code_walkthrough.md](../08_code_walkthrough.md) Section 5 を確認 |
 
 ---
 

@@ -86,10 +86,12 @@ lsbi-smc/
 
 | ファイル | 内容 |
 |---------|------|
-| [01_math_prerequisites.md](01_math_prerequisites.md) | ベイズ推論、確率論の基礎 |
-| [02_ml_prerequisites.md](02_ml_prerequisites.md) | 深層学習・VAEの基礎 |
-| [03_structural_engineering.md](03_structural_engineering.md) | 構造工学の背景（FEM、FRF、振動理論） |
-| [04_mvae.md](04_mvae.md) | Multimodal VAE の詳細 |
-| [05_latent_likelihood.md](05_latent_likelihood.md) | 潜在空間ベース尤度近似の導出 |
-| [06_smc.md](06_smc.md) | Sequential Monte Carlo サンプラー |
-| [07_code_walkthrough.md](07_code_walkthrough.md) | コード全体のウォークスルー |
+| [01_linear_algebra.md](01_linear_algebra.md) | 線形代数、NumPy/SciPy、固有値問題、数値安定性 |
+| [02_probability.md](02_probability.md) | ベイズ推論、確率論の基礎、MCMC |
+| [03_ml_prerequisites.md](03_ml_prerequisites.md) | 深層学習・VAEの基礎 |
+| [04_structural_engineering.md](04_structural_engineering.md) | 構造工学の背景（FEM、FRF、振動理論、レイリー減衰） |
+| [05_mvae.md](05_mvae.md) | Multimodal VAE の詳細 |
+| [06_latent_likelihood.md](06_latent_likelihood.md) | 潜在空間ベース尤度近似の導出 |
+| [07_smc.md](07_smc.md) | Sequential Monte Carlo サンプラー |
+| [08_code_walkthrough.md](08_code_walkthrough.md) | コード全体のウォークスルー |
+| [code/](code/) | 各 `.py` ファイルの逐次解説 + [code/tutorial.md](code/tutorial.md)（学習順序ガイド） |

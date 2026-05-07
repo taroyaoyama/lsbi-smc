@@ -1,7 +1,7 @@
 # create_dataset.py — 学習データセットの生成
 
 **ファイルパス**: `src/lsbi_smc/example_shear4dof/create_dataset.py`  
-**関連学術ドキュメント**: [03_structural_engineering.md](../03_structural_engineering.md), [00_overview.md](../00_overview.md)
+**関連学術ドキュメント**: [04_structural_engineering.md](../04_structural_engineering.md), [00_overview.md](../00_overview.md)
 
 ---
 
@@ -80,7 +80,7 @@ x_sim = sampler.random(n_sim)   # shape: (100000, 4), 値域 [0, 1]
 
 **なぜ LHS か**: ランダムサンプリングより均一にパラメータ空間をカバーする。各次元を `n_sim` 等分した格子上で各区間から1点ずつサンプリングするため、偏りが少ない。
 
-参考: [02_ml_prerequisites.md](../02_ml_prerequisites.md)（サンプリング手法の説明）
+参考: [03_ml_prerequisites.md](../03_ml_prerequisites.md)（サンプリング手法の説明）
 
 ### FRF 計算
 
@@ -110,7 +110,7 @@ y_sim_n = y_sim + noise_level * norm.rvs(size=y_sim.shape)
 - ノイズ付きデータを学習に使うことで、MVAE が実測時にも機能するようになる
 - `train.py` では `y_sim`（クリーン）を `enc_x` の入力に、`y_sim_n`（ノイズあり）をデコーダの目標に使う
 
-詳細は [04_mvae.md](../04_mvae.md) を参照。
+詳細は [05_mvae.md](../05_mvae.md) を参照。
 
 ### 保存
 

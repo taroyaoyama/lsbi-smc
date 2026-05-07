@@ -1,7 +1,7 @@
 # inference.py — SMC による事後分布推論
 
 **ファイルパス**: `src/lsbi_smc/example_shear4dof/inference.py`  
-**関連学術ドキュメント**: [06_smc.md](../06_smc.md), [05_latent_likelihood.md](../05_latent_likelihood.md), [00_overview.md](../00_overview.md)
+**関連学術ドキュメント**: [07_smc.md](../07_smc.md), [06_latent_likelihood.md](../06_latent_likelihood.md), [00_overview.md](../00_overview.md)
 
 ---
 
@@ -126,7 +126,7 @@ $$\theta_{\text{physical}} = \Phi(\theta_{\text{latent}})$$
 θ_physical * (ULIM - LLIM) + LLIM ∈ [0.33, 3.00]
 ```
 
-詳細は [05_latent_likelihood.md](../05_latent_likelihood.md) を参照。
+詳細は [06_latent_likelihood.md](../06_latent_likelihood.md) を参照。
 
 ### 事前分布の設定
 

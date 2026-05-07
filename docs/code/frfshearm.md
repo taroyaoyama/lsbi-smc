@@ -1,7 +1,7 @@
 # frfshearm.py — N自由度せん断建物の周波数応答関数（FRF）計算
 
 **ファイルパス**: `src/lsbi_smc/example_shear4dof/frfshearm.py`  
-**関連学術ドキュメント**: [03_structural_engineering.md](../03_structural_engineering.md)
+**関連学術ドキュメント**: [04_structural_engineering.md](../04_structural_engineering.md), [01_linear_algebra.md](../01_linear_algebra.md)
 
 ---
 

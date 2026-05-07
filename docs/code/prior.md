@@ -1,7 +1,7 @@
 # prior.py — 階層的事前分布
 
 **ファイルパス**: `src/lsbi_smc/smc/prior.py`  
-**関連学術ドキュメント**: [01_math_prerequisites.md](../01_math_prerequisites.md), [06_smc.md](../06_smc.md)
+**関連学術ドキュメント**: [02_probability.md](../02_probability.md), [07_smc.md](../07_smc.md)
 
 ---
 

@@ -1,7 +1,7 @@
 # mvae.py — Multimodal Variational Autoencoder
 
 **ファイルパス**: `src/lsbi_smc/example_shear4dof/mvae.py`  
-**関連学術ドキュメント**: [04_mvae.md](../04_mvae.md), [02_ml_prerequisites.md](../02_ml_prerequisites.md)
+**関連学術ドキュメント**: [05_mvae.md](../05_mvae.md), [03_ml_prerequisites.md](../03_ml_prerequisites.md)
 
 ---
 
@@ -35,7 +35,7 @@ VAE の**再パラメータ化トリック**。確率的なサンプリングを
 - $z = \mu + \sqrt{\sigma^2} \cdot \epsilon$, $\epsilon \sim \mathcal{N}(0, I)$
 - `var` は分散（$\sigma^2$）であることに注意（標準偏差ではない）
 
-詳細: [02_ml_prerequisites.md](../02_ml_prerequisites.md)（VAE の再パラメータ化）
+詳細: [03_ml_prerequisites.md](../03_ml_prerequisites.md)（VAE の再パラメータ化）
 
 ---
 
@@ -259,7 +259,7 @@ $$\mathcal{L} = \underbrace{L_{\text{KL1}} + L_{\text{KL2}}}_{\text{正則化}} 
 | `rec_xx` | `rec_loss_norm_4d(xo, x_mu1, x_var1)` | FRF潜在から再構成（目標: ノイズあり） |
 | `rec_wx` | `rec_loss_norm_4d(xo, x_mu2, x_var2)` | θ潜在からFRF予測（目標: ノイズあり） |
 
-詳細は [04_mvae.md](../04_mvae.md) を参照。
+詳細は [05_mvae.md](../05_mvae.md) を参照。
 
 ### `forward` メソッド（推論時に使用）
 

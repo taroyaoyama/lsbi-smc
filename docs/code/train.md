@@ -1,7 +1,7 @@
 # train.py — MVAE の学習スクリプト
 
 **ファイルパス**: `src/lsbi_smc/example_shear4dof/train.py`  
-**関連学術ドキュメント**: [04_mvae.md](../04_mvae.md), [02_ml_prerequisites.md](../02_ml_prerequisites.md)
+**関連学術ドキュメント**: [05_mvae.md](../05_mvae.md), [03_ml_prerequisites.md](../03_ml_prerequisites.md)
 
 ---
 

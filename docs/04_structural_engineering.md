@@ -147,41 +147,138 @@ for i in range(1, n_dof):
 
 ### 3.4 固有値解析（モーダル解析）
 
-運動方程式を解くために、まず**固有振動数と振動モード形状**を求める：
+#### 3.4.1 一般化固有値問題としての定式化
 
-$$K\Phi = M\Phi\Lambda, \qquad \Lambda = \text{diag}(\omega_1^2, \omega_2^2, \omega_3^2, \omega_4^2)$$
+運動方程式から減衰と外力を取り除いた **無減衰自由振動** を考える：
 
-- $\omega_r$：$r$ 次の固有角振動数（その建物が「自然に揺れたがる周波数」）
-- $\Phi$：振動モード形状（各次数で、各階がどの割合で動くか）
+$$M\ddot{\mathbf{u}} + K\mathbf{u} = 0$$
+
+調和振動 $\mathbf{u}(t) = \boldsymbol{\phi}\sin(\omega t)$ を仮定して代入すると、$\sin$ が両辺で消え：
+
+$$K\boldsymbol{\phi} = \omega^2 M\boldsymbol{\phi}$$
+
+これは**一般化固有値問題** $A\mathbf{v} = \lambda B\mathbf{v}$ の形（$A=K$, $B=M$, $\lambda = \omega^2$）。線形代数の基礎は [01_linear_algebra.md §4](01_linear_algebra.md) を参照。
+
+4DOF 系では4組の解 $(\omega_r^2, \boldsymbol{\phi}_r),\ r=1,\ldots,4$ が得られる：
+
+- $\omega_r$：$r$ 次の **固有角振動数**（建物が「自然に揺れたがる周波数」）
+- $\boldsymbol{\phi}_r$：$r$ 次の **モード形状**（各階がどの割合で動くか）
+
+第1モードが最もゆっくり揺れる基本振動（1〜数Hz）、第4モードが最も速い振動に対応する。
+
+#### 3.4.2 コードとの対応
 
 ```python
-lam, phi = eigh(k_mat, m_mat)   # 一般化固有値問題
-omega_nat = np.sqrt(lam)         # 固有角振動数 [rad/s]
+# frfshearm.py:39-40
+lam, phi = eigh(k_mat, m_mat)       # 一般化固有値問題（A=K, B=M）
+omega_nat = np.sqrt(lam)             # 固有角振動数 [rad/s]
 ```
 
-**4DOF系の固有振動数の意味：**
+`scipy.linalg.eigh` は対称正定値行列ペアに最適化されたソルバーで、内部的には Cholesky 分解 $M = LL^T$ を使って標準形に変換してから解いている（[01_linear_algebra.md §4.4](01_linear_algebra.md) 参照）。`np.linalg.eig` よりも高速かつ数値的に安定。
 
-4つのばねとおもりの系には4つの「自然な揺れ方（モード）」がある。第1モードが最もゆっくり揺れる基本振動（1〜数Hz）、第4モードが最も速い振動。
+**戻り値の構造：**
+
+| 変数 | 形状 | 意味 |
+|------|------|------|
+| `lam` | `(4,)` | $\omega_r^2$ を昇順に並べたベクトル |
+| `phi` | `(4, 4)` | 固有ベクトルを **列方向に並べた** 行列。`phi[:, r]` が $r$ 次モード |
+
+#### 3.4.3 モード直交性（後の議論の伏線）
+
+対称行列ペアの一般化固有ベクトルには次の重要な性質がある（**M-直交性、K-直交性**）：
+
+$$\Phi^T M \Phi = I, \qquad \Phi^T K \Phi = \mathrm{diag}(\omega_1^2, \omega_2^2, \omega_3^2, \omega_4^2)$$
+
+つまり「$\Phi$ で座標変換すると、**$M$ と $K$ が同時に対角化される**」。この性質が次節のレイリー減衰と、§4.2 の FRF 計算の数学的基盤になる。
 
 ### 3.5 レイリー減衰
 
-実際の建物は揺れると徐々にエネルギーが散逸して止まる（**減衰**）。減衰行列 $C$ の設定には様々な方法があるが、本実装では**レイリー減衰**を使う：
+#### 3.5.1 動機：減衰行列をどう与えるか
+
+実際の建物は揺れると徐々にエネルギーが散逸して止まる（**減衰**）。しかし「減衰行列 $C$ の各要素」を物理から直接決めるのは難しい。建物の振動エネルギーが摩擦・空気抵抗・微視的な材料散逸など多様な機構で失われるためである。
+
+そこで実用上、**「モードごとの減衰比」を指定する形** に問題を帰着させたい。「1次モードは2%、2次モードは2%」のように指定するほうが、エンジニアの直感とも一致する。
+
+#### 3.5.2 レイリー減衰の仮定
+
+$C$ を質量と剛性の線形結合として与える：
 
 $$C = a_0 M + a_1 K$$
 
-「減衰は質量と剛性の両方に比例する」という経験則。係数 $a_0, a_1$ は、指定した2つの振動数（本実装では 1Hz と 20Hz）で減衰比が目標値（2%）になるよう決める：
+これ自体に物理的根拠はなく、**数学的な扱いやすさのための仮定**。利点は次に出てくる。
 
-$$\begin{pmatrix} a_0 \\ a_1 \end{pmatrix} = 2 \begin{pmatrix} \frac{1}{2\omega_1} & \frac{\omega_1}{2} \\ \frac{1}{2\omega_2} & \frac{\omega_2}{2} \end{pmatrix}^{-1} \begin{pmatrix} \zeta \\ \zeta \end{pmatrix}$$
+#### 3.5.3 モード分解で対角化される
+
+§3.4.3 のモード直交性 $\Phi^T M \Phi = I$, $\Phi^T K \Phi = \mathrm{diag}(\omega_r^2)$ を $C$ に適用すると：
+
+$$\Phi^T C \Phi = a_0 \Phi^T M \Phi + a_1 \Phi^T K \Phi = a_0 I + a_1 \mathrm{diag}(\omega_r^2)$$
+
+つまり $C$ も**同じ $\Phi$ で対角化される**（これを **古典減衰** という）。$r$ 次モードの対角成分は $a_0 + a_1\omega_r^2$。
+
+**これがレイリー減衰の本質：** モード分解後の方程式が完全に分離され、各モードを独立な1自由度系として解析できる。
+
+#### 3.5.4 モード減衰比の式（ω が登場する理由）
+
+1自由度系の運動方程式 $m\ddot{u} + c\dot{u} + ku = 0$ で、減衰比 $\zeta$ は **臨界減衰 $2\sqrt{km} = 2\omega m$ に対する比** として定義される：
+
+$$c = 2\zeta \omega m \quad\Longleftrightarrow\quad \zeta = \frac{c}{2\omega m}$$
+
+$r$ 次モードでは「モード質量=1（M-直交化済み）」「モード減衰=$a_0 + a_1\omega_r^2$」「モード固有振動数=$\omega_r$」なので：
+
+$$\zeta_r = \frac{a_0 + a_1\omega_r^2}{2\omega_r} = \frac{a_0}{2\omega_r} + \frac{a_1 \omega_r}{2}$$
+
+ここで $\omega_r$ が出てくるのは「$M$ と $K$ が $\omega_r$ で表せるから」ではなく、**減衰比の定義 $\zeta = c/(2\omega m)$ そのものに $\omega$ が含まれているから**である。
+
+#### 3.5.5 $a_0, a_1$ の決定（連立方程式）
+
+$\zeta_r = \zeta$ となる $r$ は2つしか指定できない（未知数が $a_0, a_1$ の2つだから）。本実装では **1Hz と 20Hz で減衰比 2%** を指定する：
+
+$$\begin{pmatrix} \zeta_1 \\ \zeta_2 \end{pmatrix} = \underbrace{\begin{pmatrix} \frac{1}{2\omega_1} & \frac{\omega_1}{2} \\ \frac{1}{2\omega_2} & \frac{\omega_2}{2} \end{pmatrix}}_{\text{coefficient matrix}} \begin{pmatrix} a_0 \\ a_1 \end{pmatrix}$$
+
+これを $a_0, a_1$ について解く（[01_linear_algebra.md §2.3](01_linear_algebra.md) 参照）。
 
 ```python
-# frfshearm.py
+# frfshearm.py:62-66
+a_coeff = np.array(
+    [[1 / (2 * omega1), omega1 / 2],
+     [1 / (2 * omega2), omega2 / 2]], dtype=float
+)
+b = np.array([zeta1, zeta2], dtype=float)
+a0, a1 = np.linalg.solve(a_coeff, b)
+```
+
+ターゲット周波数の設定は呼び出し側で行う：
+
+```python
+# create_dataset.py / inference.py
 omega_target = np.array([1.0, 20.0]) * 2 * np.pi  # 1Hz と 20Hz
 zeta = 0.02                                          # 減衰比 2%
 ```
 
-$r$ 次モードの減衰比は：
+#### 3.5.6 レイリー減衰の周波数特性（U字曲線）
 
-$$\zeta_r = \frac{a_0}{2\omega_r} + \frac{a_1 \omega_r}{2}$$
+決まった $a_0, a_1$ から、任意のモードの減衰比は：
+
+$$\zeta_r = \underbrace{\frac{a_0}{2\omega_r}}_{\text{低周波で支配的}} + \underbrace{\frac{a_1 \omega_r}{2}}_{\text{高周波で支配的}}$$
+
+縦軸 $\zeta$、横軸 $\omega$ で描くと **U字曲線** になる：指定した2点（$\omega_1, \omega_2$）の間では減衰比が小さく、外側では大きくなる。
+
+```
+ζ
+ │ ＼      ／
+ │  ＼   ／
+ │   ＼／← ω₁ と ω₂ の間で最小
+ │  ω₁  ω₂                        → ω
+```
+
+**実装の対応関係：**
+
+```python
+# frfshearm.py:72
+zeta_r = a0 / (2 * omega_nat) + a1 * omega_nat / 2
+```
+
+`omega_nat` は §3.4 で求めた固有角振動数のベクトル `(n_dof,)` で、ブロードキャスティング（[01_linear_algebra.md §3](01_linear_algebra.md)）により全モードの $\zeta_r$ が一括計算される。
 
 ---
 
@@ -195,27 +292,53 @@ $$H_i(\omega) = \frac{\text{$i$ 階の加速度応答}}{\text{地盤の加速度
 
 FRFを見ることで、どの周波数帯域で建物が大きく揺れるか（**共振**）が一目でわかる。
 
-### 4.2 FRFの計算式
+### 4.2 FRFの計算式（モード重ね合わせ法）
 
-固有値解析の結果（$\omega_r, \Phi, \zeta_r$）を使うと、FRFを解析的に計算できる：
+#### 4.2.1 数学的導出のあらまし
 
-$$H_i(\omega) = 1 + \omega^2 \sum_{r=1}^{4} \frac{\Phi_{ir}\, g_r}{\omega_r^2 - \omega^2 + 2i\zeta_r \omega_r \omega}$$
+§3.4.3 のモード直交性により、運動方程式は **モード座標 $\mathbf{q}(t) = \Phi^{-1}\mathbf{u}(t)$** に変換すると完全に分離する：
+
+$$\ddot{q}_r + 2\zeta_r\omega_r \dot{q}_r + \omega_r^2 q_r = -g_r \ddot{u}_g(t), \qquad g_r = \boldsymbol{\phi}_r^T M \mathbf{1}$$
+
+各モードは独立な1自由度系。周波数領域で解くと（フーリエ変換して整理）：
+
+$$H_i(\omega) = 1 + \omega^2 \sum_{r=1}^{4} \frac{\Phi_{ir}\, g_r}{\omega_r^2 - \omega^2 + 2j\zeta_r \omega_r \omega}$$
 
 | 記号 | 意味 |
 |------|------|
 | $\omega$ | 入力の角振動数（計算したい周波数） |
 | $\Phi_{ir}$ | $r$ 次モードの $i$ 階での振動振幅 |
-| $g_r = \Phi_r^T M \mathbf{1}$ | $r$ 次モードの励起係数（地震がどれだけそのモードを揺らすか） |
+| $g_r = \boldsymbol{\phi}_r^T M \mathbf{1}$ | $r$ 次モードの励起係数（地震がどれだけそのモードを揺らすか） |
 | 分母 | $\omega$ が $\omega_r$ に近づくと小さくなり → 共振で大きく増幅 |
 
+#### 4.2.2 コードとの対応
+
 ```python
-# frfshearm.py
-g = phi.T @ (m_mat @ r)                    # 励起係数（各モード）
-denom = -(omeg**2) + 2j*zeta_r*omega_nat*omeg + omega_nat**2
-v = (1.0 / denom) * g[:, None]             # モーダル応答
-u_mat = phi @ v                            # 全階の変位
-h_frf = r[:, None] + (omeg**2) * u_mat    # 加速度FRF
+# frfshearm.py:75-86
+r = np.ones(n_dof)                          # 影響ベクトル
+m_r = m_mat @ r                              # M·1
+g = phi.T @ m_r                              # g_r = φ_r^T M·1（全モード）
+omeg = (np.arange(dlf, fmax + dlf, dlf) * 2 * np.pi).astype(float)
+
+omega_nat_col = omega_nat[:, None]           # (n_dof, 1)
+zeta_r_col = zeta_r[:, None]                 # (n_dof, 1)
+denom = (
+    -(omeg[None, :] ** 2)                   # (1, n_freq)
+    + 2j * zeta_r_col * omega_nat_col * omeg[None, :]
+    + omega_nat_col**2
+)
+v = (1.0 / denom) * g[:, None]              # モーダル応答 (n_dof, n_freq)
+u_mat = phi @ v                              # 全階の変位 (n_dof, n_freq)
+h_frf = r[:, None] + (omeg[None, :] ** 2) * u_mat   # 加速度FRF
 ```
+
+ここでブロードキャスティング（[01_linear_algebra.md §3](01_linear_algebra.md)）が活躍している：
+
+- `omega_nat[:, None]` で「モード方向の軸」を作る
+- `omeg[None, :]` で「周波数方向の軸」を作る
+- これらを掛け合わせると `(n_dof, n_freq)` の行列ができ、**全モード × 全周波数の応答が一気に計算される**
+
+明示的な for ループより数十倍速い。これが NumPy らしい高速化パターン。
 
 ### 4.3 なぜ対数スケールで扱うか
 
@@ -330,7 +453,7 @@ p(θ₁, θ₂ | x_obs)の断面
 　└──────────────────────────────→ θ₁
 ```
 
-通常のMCMC（NUTSなど）は一つの山を登ることしかできず、他の峰を見逃す。**SMC（逐次モンテカルロ）はテンパリングによってこの多峰性を扱える**（詳細は [01_math_prerequisites.md §8](01_math_prerequisites.md) 参照）。
+通常のMCMC（NUTSなど）は一つの山を登ることしかできず、他の峰を見逃す。**SMC（逐次モンテカルロ）はテンパリングによってこの多峰性を扱える**（詳細は [02_probability.md §8](02_probability.md) 参照）。
 
 ### 5.4 直接計算の壁：なぜ尤度計算が難しいか
 
@@ -345,7 +468,7 @@ $$p(\mathbf{x}_{\text{obs}} \mid \theta) = \mathcal{N}(\mathbf{x}_{\text{obs}} \
 
 **解決策：潜在空間での尤度計算**
 
-本研究の核心的なアイデアは「1024次元の高次元FRF空間」ではなく「8次元の潜在空間（$z$ 空間）」で尤度を計算すること。これが MVAE と SMC を組み合わせる理由（詳細は [05_latent_likelihood.md](05_latent_likelihood.md) 参照）。
+本研究の核心的なアイデアは「1024次元の高次元FRF空間」ではなく「8次元の潜在空間（$z$ 空間）」で尤度を計算すること。これが MVAE と SMC を組み合わせる理由（詳細は [06_latent_likelihood.md](06_latent_likelihood.md) 参照）。
 
 ---
 
@@ -411,7 +534,7 @@ np.savez("train_data.npz",
 100000     × 4（各階） × 1    × 1024（周波数点数）
 ```
 
-「高さ=1」は1次元FRFデータを Conv2d で処理するための擬似的な2次元化（[02_ml_prerequisites.md §4.4](02_ml_prerequisites.md) 参照）。
+「高さ=1」は1次元FRFデータを Conv2d で処理するための擬似的な2次元化（[03_ml_prerequisites.md §4.4](03_ml_prerequisites.md) 参照）。
 
 ### 6.4 訓練での使い方
 
