@@ -166,6 +166,18 @@ $$K\boldsymbol{\phi} = \omega^2 M\boldsymbol{\phi}$$
 
 第1モードが最もゆっくり揺れる基本振動（1〜数Hz）、第4モードが最も速い振動に対応する。
 
+> **形に注意：$\omega^2$ はスカラー、$\Lambda$ は対角行列**
+>
+> $\omega_1, \omega_2, \omega_3, \omega_4$ と複数あるので $\omega^2$ も「ベクトル」と思いたくなるが、$K\boldsymbol{\phi} = \omega^2 M\boldsymbol{\phi}$ の $\omega^2$ は **1モード分のスカラー**である。ベクトルだとすると $\omega^2 \cdot M\boldsymbol{\phi}$ の積が「ベクトル × 行列 × ベクトル」となり次元が合わない。
+>
+> 全モードを一つの式にまとめたいときは、**ベクトルではなく対角行列**を使って次のように書く：
+>
+> $$K\Phi = M\Phi\Lambda, \qquad \Phi = [\boldsymbol{\phi}_1, \boldsymbol{\phi}_2, \boldsymbol{\phi}_3, \boldsymbol{\phi}_4],\quad \Lambda = \mathrm{diag}(\omega_1^2, \omega_2^2, \omega_3^2, \omega_4^2)$$
+>
+> 行列 $\Phi$ の右から $\Lambda$ を掛けると「列 $r$ にだけ $\omega_r^2$ が掛かる」ので、列ごとに見れば元の4本の式 $K\boldsymbol{\phi}_r = \omega_r^2 M\boldsymbol{\phi}_r$ に分解される。
+>
+> 実装の `lam` は形状 `(4,)` のベクトルとして返ってくるが、これは対角行列 $\Lambda$ を**対角成分だけのコンパクト表現**で持っているもの。本来の数学的役割は対角行列である点に注意（実際にモード減衰計算 [frfshearm.py:72](../src/lsbi_smc/example_shear4dof/frfshearm.py#L72) ではブロードキャストで「列ごとに $\omega_r$ を掛ける」操作になっている）。
+
 #### 3.4.2 コードとの対応
 
 ```python
