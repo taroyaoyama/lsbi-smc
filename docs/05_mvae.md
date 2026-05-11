@@ -136,12 +136,12 @@ loss = KL1 + KL2 + alp1*(KL_x1x2 + KL_x2x1) + alp2*rec_xx + alp3*rec_wx
 
 | 損失項 | 式 | 役割 |
 |--------|-----|------|
-| `KL1` | $D_{\text{KL}}(q_{\phi_x}(z|x) \| \mathcal{N}(0,I))$ | FRFエンコーダを正則化 |
-| `KL2` | $D_{\text{KL}}(q_{\phi_\theta}(z|\theta) \| \mathcal{N}(0,I))$ | パラメータエンコーダを正則化 |
-| `KL_x1x2` | $D_{\text{KL}}(q_{\phi_x} \| q_{\phi_\theta})$ | 両エンコーダの潜在表現を整合 |
-| `KL_x2x1` | $D_{\text{KL}}(q_{\phi_\theta} \| q_{\phi_x})$ | 両エンコーダの潜在表現を整合 |
-| `rec_xx` | $-\mathbb{E}_{z\sim q_{\phi_x}}[\log p_\eta(\tilde{x}|z)]$ | FRFから再構成できているか |
-| `rec_wx` | $-\mathbb{E}_{z\sim q_{\phi_\theta}}[\log p_\eta(\tilde{x}|z)]$ | パラメータからFRFを予測できるか |
+| `KL1` | $D_{\text{KL}}(q_{\phi_x}(z\mid x) \,\Vert\, \mathcal{N}(0,I))$ | FRFエンコーダを正則化 |
+| `KL2` | $D_{\text{KL}}(q_{\phi_\theta}(z\mid \theta) \,\Vert\, \mathcal{N}(0,I))$ | パラメータエンコーダを正則化 |
+| `KL_x1x2` | $D_{\text{KL}}(q_{\phi_x} \,\Vert\, q_{\phi_\theta})$ | 両エンコーダの潜在表現を整合 |
+| `KL_x2x1` | $D_{\text{KL}}(q_{\phi_\theta} \,\Vert\, q_{\phi_x})$ | 両エンコーダの潜在表現を整合 |
+| `rec_xx` | $-\mathbb{E}_{z\sim q_{\phi_x}}[\log p_\eta(\tilde{x}\mid z)]$ | FRFから再構成できているか |
+| `rec_wx` | $-\mathbb{E}_{z\sim q_{\phi_\theta}}[\log p_\eta(\tilde{x}\mid z)]$ | パラメータからFRFを予測できるか |
 
 **`KL_x1x2 + KL_x2x1`**（α=5）が特に重要：これにより $q_{\phi_x}(z|x)$ と $q_{\phi_\theta}(z|\theta)$ が同じ潜在表現を持つように強制される。
 
