@@ -71,9 +71,17 @@ def eval_weights(self, dq=None):
     self.weights = w
 ```
 
-重み付けの式：$w_n \propto \hat{L}(\theta^{(n)})^{\Delta\beta}$（対数スケール: $\Delta\beta \cdot \log\hat{L}(\theta^{(n)})$）
+**重みの数学的な出所**：
 
-**logsum-exp トリック**: `z -= z.max()` で値を引いても exp の比率が変わらないため、数値的なオーバーフロー・アンダーフローを防ぐ。
+現在の粒子は $\pi_{\beta_k}$ に従っている。これを使って $\pi_{\beta_{k+1}}$ に従う集合を作るのは、提案 $q = \pi_{\beta_k}$・目的 $p = \pi_{\beta_{k+1}}$ とする **重点サンプリング** の応用：
+
+$$w^{(n)} \propto \frac{\pi_{\beta_{k+1}}(\theta^{(n)})}{\pi_{\beta_k}(\theta^{(n)})} = \hat{L}(\theta^{(n)})^{\Delta\beta}$$
+
+事前分布の項と正規化定数は分子分母で消える（[02_probability.md §8.10](../02_probability.md), [07_smc.md §4](../07_smc.md)）。
+
+対数スケールでは $\log w^{(n)} = \Delta\beta \cdot \log\hat{L}(\theta^{(n)})$。コード中の `self.dq * self.lp` がまさにこれ。
+
+**logsum-exp トリック**: `z -= z.max()` で値を引いても exp の比率が変わらないため、数値的なオーバーフロー・アンダーフローを防ぐ。最大値を 0 にシフトするので $\exp$ の引数は常に $\le 0$。
 
 ### `resample` メソッド
 
@@ -85,7 +93,17 @@ def resample(self, dq=None):
     self.lp = self.lp[idx]
 ```
 
-**多項サンプリング（Multinomial Sampling）**: 重みに比例した確率で粒子をリサンプリング。同じ粒子が複製されることがあるが、後の MCMC ムーブで多様性が回復する。
+**多項サンプリング（Multinomial Sampling）**: 重みに比例した確率で粒子を再抽出する。各粒子 $n$ が重み $w^{(n)}$ で選ばれ、これを $N$ 回独立に繰り返す。
+
+**役割の連鎖**：
+
+| 操作 | 達成すること | 引き起こす副作用 |
+|------|------------|----------------|
+| `eval_weights` で重み付け | $\pi_{\beta_k} \to \pi_{\beta_{k+1}}$ の橋渡し | 重みの偏り（ESS 低下） |
+| `resample` | 重みの偏りを「粒子の複製・削除」に変換 | 同じ $\theta$ の重複（多様性低下） |
+| `kernel` で MCMC ムーブ | 重複粒子を散らして多様性回復 | 計算コスト |
+
+これら 3 つは相補関係：詳細は [07_smc.md §3](../07_smc.md)。
 
 ### `replace` メソッド
 
@@ -112,8 +130,15 @@ def ess(weights_np: NDArray) -> float:
 
 $$\text{ESS} = \frac{\left(\sum_n w_n\right)^2}{\sum_n w_n^2}$$
 
-- 全粒子が等重み → ESS = N（最大値）
-- 1粒子に全重みが集中 → ESS = 1（最小値）
+**ESS を「実質的に効いている粒子数」と読む直感**:
+
+| 重み分布 | $\sum w^2$ | ESS |
+|---------|-----------|-----|
+| 全粒子が等重み ($w_n = 1/N$) | $N \cdot (1/N)^2 = 1/N$ | $N$（最大） |
+| $k$ 個に均等集中 ($w = 1/k$, 他は 0) | $k \cdot (1/k)^2 = 1/k$ | $k$ |
+| 1 粒子に全集中 ($w_1 = 1$) | $1$ | $1$（最小） |
+
+つまり ESS は **「等重み換算で何個分の粒子に相当するか」** を測る指標。SMC では ESS が目標値（例：$0.8N$）を維持できる最大の $\Delta\beta$ を二分探索で見つける（[07_smc.md §5](../07_smc.md)）。
 
 ### `_ess_from_lp` 関数
 
@@ -149,6 +174,8 @@ def _find_next_q(q_prev, q_tar, lp_np, ess_tar, tol=1e-6, maxit=50) -> float:
 
 - `ess_from_lp(hi - q_prev, lp_np) >= ess_tar` → 一気に終点まで進める
 - そうでなければ二分探索で $\Delta\beta$ を絞り込む
+
+**なぜ二分探索で良いのか**：$\Delta\beta$ を 0 から大きくすると、重みが指数的に偏っていくため $\text{ESS}(\Delta\beta)$ はほぼ単調減少。単調関数の根を探すので二分探索が使える。
 
 ---
 

@@ -96,7 +96,7 @@ class Normal:
 | `lp(values)` | `dist.Normal(mu, sg).log_prob(values)` |
 | `check_support(values)` | 常に `True`（全実数がサポート） |
 
-`inference.py` での使用（SMC の潜在空間での事前分布）:
+`inference.py` での使用（SMC の無制約空間 $\theta_{\text{latent}} \in \mathbb{R}$ での事前分布。物理空間で見れば $\text{Uniform}(L, U)$ と等価。[06_latent_likelihood.md §6](../06_latent_likelihood.md) 参照）:
 ```python
 Normal('k01', Constant(0.0), Constant(1.0))  # N(0, 1)
 ```

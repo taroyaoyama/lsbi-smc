@@ -36,7 +36,7 @@ uv run python src/lsbi_smc/example_shear4dof/inference.py
       ↓
 6. SMC の実行
       ↓
-7. 潜在空間 → 物理パラメータへの逆変換
+7. 無制約空間 → 正規化空間 → 物理パラメータへの逆変換
       ↓
 8. posterior.mat に保存
 ```
@@ -105,28 +105,39 @@ class LogLikelihood(MVAEBasedLogLikelihood):
         self.n_call = 0                     # 尤度評価回数のカウンター
 
     def __call__(self, theta: Tensor, alp=1.0, tau=0.00) -> Tensor:
-        theta = stdnorm.cdf(theta)          # ★ CDF変換: R → [0, 1]
+        theta = stdnorm.cdf(theta)          # ★ CDF変換: θ_latent ∈ ℝ → θ_norm ∈ [0, 1]
         self.n_call += len(theta)           # 呼び出し回数を記録
         return super().__call__(theta, alp=1.0, tau=0.00)
 ```
 
 **CDF変換（最重要）**:
 
-SMC は事前分布 $\mathcal{N}(0,1)$ の空間（$\theta_{\text{latent}} \in \mathbb{R}$）で粒子を動かす。尤度計算時に物理パラメータ空間 $[0,1]$ へ変換する：
+本実装では $\theta$ が **3 つの空間** を行き来する：
 
-$$\theta_{\text{physical}} = \Phi(\theta_{\text{latent}})$$
+| 空間 | 範囲 | 用途 |
+|------|------|------|
+| 無制約空間 $\theta_{\text{latent}}$ | $\mathbb{R}$ | SMC のサンプリング・MCMC カーネル |
+| 正規化空間 $\theta_{\text{norm}}$ | $[0, 1]$ | MVAE の入力（学習時もこのスケール） |
+| 物理空間 $\theta_{\text{phys}}$ | $[L, U] = [0.33, 3.00]$ | シミュレーター入力・最終出力 |
 
-ここで $\Phi$ は標準正規分布の累積分布関数（CDF）。
+ここで使われているのは「**$\theta_{\text{latent}} \to \theta_{\text{norm}}$ への変換**」：
+
+$$\theta_{\text{norm}} = \Phi(\theta_{\text{latent}})$$
+
+$\Phi$ は標準正規分布の累積分布関数（CDF）。
+**確率積分変換** によって、$\theta_{\text{latent}} \sim \mathcal{N}(0,1)$ なら $\Phi(\theta_{\text{latent}}) \sim \text{Uniform}(0,1)$ となる（[06_latent_likelihood.md §6.2](../06_latent_likelihood.md) 参照）。
 
 ```
-θ_latent ∈ ℝ （SMC が探索する空間）
-   ↓ stdnorm.cdf(θ)
-θ_physical ∈ [0, 1]
-   ↓ Simulator 内で
-θ_physical * (ULIM - LLIM) + LLIM ∈ [0.33, 3.00]
+θ_latent ∈ ℝ          （SMC が探索する空間。境界がないので MCMC が楽）
+   ↓ stdnorm.cdf(θ)     [この __call__ メソッド]
+θ_norm ∈ [0, 1]       （MVAE の enc_w に渡すスケール）
+   ↓                    [後段で物理空間へ戻す: pop * (ULIM-LLIM) + LLIM]
+θ_phys ∈ [0.33, 3.00] （物理パラメータ：剛性比）
 ```
 
-詳細は [06_latent_likelihood.md](../06_latent_likelihood.md) を参照。
+**なぜ無制約空間でサンプリングするのか**: RW-MH の提案 $\theta' = \theta + \epsilon$ は無制約空間だと境界処理が不要で実装がシンプル。
+
+詳細は [06_latent_likelihood.md §6](../06_latent_likelihood.md) を参照。
 
 ### 事前分布の設定
 
@@ -140,7 +151,14 @@ prior = HierarchicalPrior(variables)
 
 SMC の探索空間は無制約（$\theta_{\text{latent}} \in \mathbb{R}^4$）なので、事前分布は $\mathcal{N}(0,1)^4$。
 
-CDF変換との対応：$\mathcal{N}(0,1)$ の事前分布 + CDF変換 = 物理空間 $[0,1]$ 上の一様分布に対応。
+**事前分布の等価性**：
+
+| 座標系 | 事前分布の表現 |
+|--------|---------------|
+| 無制約空間 $\theta_{\text{latent}}$ | $\mathcal{N}(0, 1)$ |
+| 物理空間 $\theta_{\text{phys}}$ | $\text{Uniform}(L, U)$ |
+
+つまり「物理空間で $[L, U]$ 上の無情報一様事前分布」を、サンプリングしやすい座標系で書き直したのが標準正規事前分布。CDF 変換の確率積分変換性質によって等価になる。
 
 ### SMC の実行
 
@@ -170,15 +188,16 @@ smc1.run(ess_tar_ratio=0.8, mcmc_iter=10)
 ### 結果の取り出しと変換
 
 ```python
-# SMC の最終状態（潜在空間での粒子）
-pop = smc1.pops[-1].detach().cpu().numpy()   # shape: (2000, 4)
+# SMC の最終状態（無制約空間での粒子）
+pop = smc1.pops[-1].detach().cpu().numpy()   # shape: (2000, 4), θ_latent
 
-# 逆変換: 潜在空間 → 物理パラメータ
-pop = norm.cdf(pop)                           # [0, 1] に変換
-pop = pop * (ULIM - LLIM) + LLIM             # [0.33, 3.00] に変換
+# 2 段階変換: θ_latent → θ_norm → θ_phys
+pop = norm.cdf(pop)                           # θ_latent ∈ ℝ → θ_norm ∈ [0, 1]
+pop = pop * (ULIM - LLIM) + LLIM             # θ_norm → θ_phys ∈ [0.33, 3.00]
 ```
 
-`smc1.pops[-1]` は最後の SMC ステップの粒子群 = 事後分布のサンプル。
+`smc1.pops[-1]` は最後の SMC ステップの粒子群 = 事後分布のサンプル（無制約空間表現）。
+ここで [06_latent_likelihood.md §6.4](../06_latent_likelihood.md) で説明している 2 段階変換を逆向きに辿って物理スケールに戻す。
 
 ### 保存
 
