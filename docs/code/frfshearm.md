@@ -53,7 +53,7 @@ shape: (n_dof, n_freq)
 ```
 
 - `n_freq = int(fmax / dlf)` 個の周波数点における各階の **対数FRF絶対値**
-- 具体的には `log(|H_ij(ω)|)` を返す（絶対値の自然対数）
+- 具体的には `log(|H_i(ω)|)` を返す（絶対値の自然対数）。入力は基礎加速度の1点のみなので添字は出力階 `i` の1つだけ
 
 ベンチマーク設定（`create_dataset.py`）では `dlf=0.02, fmax=20.48` → `n_freq=1024`
 
@@ -120,9 +120,9 @@ a0, a1 = np.linalg.solve(a_coeff, [zeta1, zeta2])
 
 床応答FRFの計算（モード重ね合わせ法）：
 
-$$H_{ij}(\omega) = \sum_{r=1}^{n} \frac{\phi_{ir} \cdot g_r}{-\omega^2 + 2j\zeta_r\omega_r\omega + \omega_r^2}$$
+$$H_{i}(\omega) = \sum_{r=1}^{n} \frac{\phi_{ir} \cdot g_r}{-\omega^2 + 2j\zeta_r\omega_r\omega + \omega_r^2}$$
 
-ここで $g_r = \phi_r^T M \mathbf{r}$（有効モード質量）、$\mathbf{r}$ は単位ベクトル（基礎加速度入力）。
+ここで $g_r = \phi_r^T M \mathbf{r}$（有効モード質量）、$\mathbf{r}$ は単位ベクトル（基礎加速度入力）。なお分母の $j$ は虚数単位（$j=\sqrt{-1}$）で、添字の $i$ とは別物。
 
 ```python
 r = np.ones(n_dof)                           # 基礎入力ベクトル
