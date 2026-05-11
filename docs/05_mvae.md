@@ -149,20 +149,99 @@ loss = KL1 + KL2 + alp1*(KL_x1x2 + KL_x2x1) + alp2*rec_xx + alp3*rec_wx
 
 ### 4.3 再構成損失の計算
 
+#### 4.3.1 出発点：負の対数尤度
+
+再構成損失の出発点は次の式：
+
 $$L_{\text{rec}} = -\mathbb{E}_{z \sim q_\phi(z|x)}[\log p_\eta(\tilde{x}|z)]$$
 
-ガウス分布 $p_\eta(\tilde{x}|z) = \mathcal{N}(\hat{x}_\mu, \text{diag}(\hat{x}_\sigma^2))$ のとき：
+これは **「潜在変数 $z$ から復元したデコーダの分布 $p_\eta(\tilde{x}|z)$ のもとで、観測 $\tilde{x}$ が得られる確率の対数」を最大化したい** という意図を表す。
 
-$$-\log p_\eta(\tilde{x}|z) = \frac{1}{2}\sum_i \left[\frac{(\tilde{x}_i - \hat{x}_{\mu,i})^2}{\hat{x}_{\sigma,i}^2} + \log\hat{x}_{\sigma,i}^2 + \log(2\pi)\right]$$
+- 確率を最大化 ⇔ 負の対数尤度を最小化（最尤推定の基本パターン）
+- 期待値は「$z$ を確率的にサンプリングする VAE では、サンプル次第で結果が変わるので平均を取る」という意味
+
+実装では期待値は **1 個の MC サンプル** で近似する（再パラメータ化トリックで `z` を1つだけ取り出す。[03_ml_prerequisites.md](03_ml_prerequisites.md) 参照）。
+
+#### 4.3.2 デコーダ出力の仮定
+
+ここが式の形を決める核心。デコーダは点推定ではなく **「各ピクセル（周波数点）が独立な正規分布に従う」** とモデル化する：
+
+$$p_\eta(\tilde{x}|z) = \prod_{i=1}^{D} \mathcal{N}\!\left(\tilde{x}_i \,\middle|\, \hat{x}_{\mu,i}, \hat{x}_{\sigma,i}^2\right), \qquad D = \text{ch} \times \text{depth} \times \text{size}$$
+
+- **各点が独立**：共分散行列が対角（次元間の相関を仮定しない）
+- **平均 $\hat{x}_{\mu,i}$ と分散 $\hat{x}_{\sigma,i}^2$ は両方ともデコーダの出力**：`Decoder` クラスが `decoder_mu` と `decoder_var` という 2 つのヘッドを持つのはこのため
+
+なぜ独立を仮定するのか：
+- 完全な共分散行列を出力すると $D \times D = 1024 \times 1024 \approx 10^6$ 個のパラメータが必要 → 非現実的
+- 各点独立としても、潜在変数 $z$ を介して間接的に相関を表現できる（条件付き独立性）
+
+#### 4.3.3 ガウス対数尤度の式
+
+1 次元正規分布の確率密度関数：
+
+$$\mathcal{N}(\tilde{x}_i \mid \hat{x}_{\mu,i}, \hat{x}_{\sigma,i}^2) = \frac{1}{\sqrt{2\pi \hat{x}_{\sigma,i}^2}} \exp\!\left(-\frac{(\tilde{x}_i - \hat{x}_{\mu,i})^2}{2 \hat{x}_{\sigma,i}^2}\right)$$
+
+両辺の対数を取ると：
+
+$$\log \mathcal{N}(\tilde{x}_i \mid \hat{x}_{\mu,i}, \hat{x}_{\sigma,i}^2) = -\frac{1}{2}\left[\frac{(\tilde{x}_i - \hat{x}_{\mu,i})^2}{\hat{x}_{\sigma,i}^2} + \log\hat{x}_{\sigma,i}^2 + \log(2\pi)\right]$$
+
+**3 つの項の意味**：
+
+| 項 | 役割 |
+|----|------|
+| $\dfrac{(\tilde{x}_i - \hat{x}_{\mu,i})^2}{\hat{x}_{\sigma,i}^2}$ | **マハラノビス距離項**：誤差を分散で割って正規化。「分散が大きい点は誤差が大きくても許す、分散が小さい点は厳しく咎める」 |
+| $\log\hat{x}_{\sigma,i}^2$ | **分散ペナルティ項**：これがないとデコーダは $\hat{\sigma}^2 \to \infty$ にすることで誤差を見かけ上ゼロにできてしまう。分散を大きくするとこの項が増えるのでブレーキになる |
+| $\log(2\pi)$ | 正規化定数（学習に直接の影響なし、定数オフセット） |
+
+#### 4.3.4 独立性 → 和への分解
+
+独立な分布の積の対数は、対数の和になる：
+
+$$\log p_\eta(\tilde{x}|z) = \log \prod_{i=1}^{D} \mathcal{N}_i = \sum_{i=1}^{D} \log \mathcal{N}_i$$
+
+各項を代入して整理すると、最終的な負の対数尤度：
+
+$$\boxed{-\log p_\eta(\tilde{x}|z) = \frac{1}{2}\sum_i \left[\frac{(\tilde{x}_i - \hat{x}_{\mu,i})^2}{\hat{x}_{\sigma,i}^2} + \log\hat{x}_{\sigma,i}^2 + \log(2\pi)\right]}$$
+
+これがコードと完全一致する。
+
+#### 4.3.5 コードとの対応
 
 ```python
-# mvae.py:32-35
-def rec_loss_norm4D(x, mean, var):
+# mvae.py
+def rec_loss_norm_4d(x, mean, var):
     return -torch.mean(
-        torch.sum(-0.5 * ((x - mean) ** 2 / var + torch.log(var)
-                          + torch.log(torch.tensor(2 * torch.pi))), dim=(1, 2, 3))
+        torch.sum(
+            -0.5 * ((x - mean) ** 2 / var
+                    + torch.log(var)
+                    + torch.log(torch.tensor(2 * torch.pi))),
+            dim=(1, 2, 3),
+        )
     )
 ```
+
+| 数式 | コード |
+|------|--------|
+| $(\tilde{x}_i - \hat{x}_{\mu,i})^2 / \hat{x}_{\sigma,i}^2$ | `(x - mean) ** 2 / var` |
+| $\log\hat{x}_{\sigma,i}^2$ | `torch.log(var)` |
+| $\log(2\pi)$ | `torch.log(torch.tensor(2 * torch.pi))` |
+| $\frac{1}{2}\sum_i [\cdots]$ | `-0.5 * (...)` の和（外側の `-torch.mean` で符号反転され NLL になる） |
+| バッチ平均 | 外側の `torch.mean` |
+| 全要素和（次元 1〜3） | `torch.sum(..., dim=(1, 2, 3))` |
+
+`dim=(1, 2, 3)` は「チャンネル × 深さ × 周波数点」のすべての軸で和を取り、サンプルあたりの NLL を出している。詳しくは [code/mvae.md](code/mvae.md) の「`torch.sum(..., dim=...).mean()` の意味」を参照。
+
+#### 4.3.6 直感：MSE との関係
+
+もし分散を $\hat{x}_{\sigma,i}^2 = 1$（固定定数）と仮定すると、上の式は：
+
+$$-\log p \propto \sum_i (\tilde{x}_i - \hat{x}_{\mu,i})^2 + \text{const}$$
+
+これは **平均二乗誤差（MSE）と一致する**。つまり：
+
+> **MVAE の再構成損失は「分散も学習する一般化された MSE」**
+
+分散を学習することで「自信のある点は厳しく、自信のない点は緩く」という適応的な重み付けが可能になり、観測ノイズの大きさをデータから推定できる。
 
 ---
 
