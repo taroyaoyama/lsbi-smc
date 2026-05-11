@@ -259,17 +259,73 @@ $$\hat{f}(\omega) = \int_{-\infty}^{\infty} f(t)\,e^{-j\omega t}\,dt$$
 
 ### 5.2 鍵となる性質：微分が掛け算になる
 
-$f(t)$ を $e^{j\omega t}$ の重ね合わせと見ると、時間微分 $d/dt$ は $e^{j\omega t}$ に対して $j\omega$ を掛けるだけの操作になる：
-
-$$\frac{d}{dt}\,e^{j\omega t} = j\omega\,e^{j\omega t}$$
-
-これが各成分について成り立つので、線形性により
+結論を先に書くと：
 
 $$\boxed{\;\mathcal{F}[\dot{f}] = j\omega\,\hat{f}, \qquad \mathcal{F}[\ddot{f}] = (j\omega)^2\,\hat{f} = -\omega^2\,\hat{f}\;}$$
 
-これがフーリエ変換を使う最大の理由：**微分方程式（解くのが面倒）が代数方程式（割り算で解ける）に変わる**。
+つまり**時間微分**が、周波数領域では **$j\omega$ を掛けるだけの操作**に化ける。これがフーリエ変換を使う最大の理由：**微分方程式（解くのが面倒）が代数方程式（割り算で解ける）に変わる**。
 
-> **固有値分解との対応：** $e^{j\omega t}$ は微分演算子 $d/dt$ の固有関数で、固有値が $j\omega$。フーリエ変換は「$d/dt$ という線形演算子を固有関数基底で対角化する操作」と見なせる。§4 の固有値問題が**離散の世界**（行列を固有ベクトル基底で対角化）だったのに対し、フーリエ変換は**連続の世界**での同じ操作。だから「座標変換で微分作用素 $\frac{d^2}{dt^2} + 2\zeta\omega_r \frac{d}{dt} + \omega_r^2$ が $-\omega^2 + 2j\zeta\omega_r\omega + \omega_r^2$ という単なる複素数の掛け算になる」のは、「行列が固有基底で対角化される」のと同じ現象。
+以下、なぜそうなるかを3つの小ステップで導く。
+
+##### 5.2.1 ステップ1：$e^{j\omega t}$ は微分しても形が変わらない
+
+ここで $j$ は虚数単位（$j^2 = -1$）で、$\omega$ は実数の定数。「指数関数の微分は元の関数に係数を掛けるだけ」という高校数学の事実
+
+$$\frac{d}{dt}\,e^{at} = a\,e^{at}$$
+
+をそのまま $a = j\omega$ に当てはめると
+
+$$\boxed{\;\frac{d}{dt}\,e^{j\omega t} = j\omega\,e^{j\omega t}\;}$$
+
+つまり $e^{j\omega t}$ を $d/dt$ に通すと、**関数の形は $e^{j\omega t}$ のまま、定数 $j\omega$ が前に出てくるだけ**。
+
+> 別の言い方をすると、$e^{j\omega t}$ は微分演算子 $d/dt$ の **固有関数** で、対応する固有値が $j\omega$。$\sin(\omega t)$ や $\cos(\omega t)$ では成り立たない（$\frac{d}{dt}\sin = \omega\cos$ で別の関数になってしまう）。$\sin$ と $\cos$ を複素指数 $e^{j\omega t} = \cos(\omega t) + j\sin(\omega t)$ にまとめると、はじめてこの「形が変わらない」性質が得られる。これが「正弦波ではなく複素指数で展開する」最大の理由。
+
+##### 5.2.2 ステップ2：$f(t)$ を $e^{j\omega t}$ の重ね合わせで書き直す
+
+フーリエ変換 $\hat{f}(\omega)$ の **逆変換** は次の形をしている（§5.1 で「逆変換も積分で定義され、1対1対応する」と書いた、その具体形）：
+
+$$f(t) = \frac{1}{2\pi}\int_{-\infty}^{\infty} \hat{f}(\omega)\,e^{j\omega t}\,d\omega$$
+
+右辺を見ると、これは **「いろんな $\omega$ に対する $e^{j\omega t}$ を、重み $\hat{f}(\omega)$ で重ね合わせている」** という形（積分は連続的な「足し算」）。
+
+> 線形代数のアナロジー：ベクトル $\mathbf{v}$ を直交基底 $\{\boldsymbol{e}_i\}$ で展開すると $\mathbf{v} = \sum_i v_i \boldsymbol{e}_i$。フーリエ逆変換はこの連続版で、基底が $\{e^{j\omega t}\}_{\omega\in\mathbb{R}}$、係数が $\hat{f}(\omega)$、和が積分。
+
+##### 5.2.3 ステップ3：両辺を微分する
+
+ステップ2 の式の両辺を $t$ で微分する。右辺の $\hat{f}(\omega)$ は $t$ に依存しない（$\omega$ の関数）ので、微分は積分の中の $e^{j\omega t}$ にだけ作用する：
+
+$$\dot{f}(t) = \frac{d}{dt}\left[\frac{1}{2\pi}\int \hat{f}(\omega)\,e^{j\omega t}\,d\omega\right] = \frac{1}{2\pi}\int \hat{f}(\omega)\,\underbrace{\frac{d}{dt}e^{j\omega t}}_{=\,j\omega\, e^{j\omega t}\ (\text{ステップ1})}\,d\omega$$
+
+整理すると
+
+$$\dot{f}(t) = \frac{1}{2\pi}\int \bigl[\,j\omega\,\hat{f}(\omega)\,\bigr]\,e^{j\omega t}\,d\omega$$
+
+これを見ると、$\dot{f}(t)$ も「$e^{j\omega t}$ の重ね合わせ」の形をしていて、その重み（フーリエ変換）が **$j\omega\,\hat{f}(\omega)$** になっている。つまり
+
+$$\widehat{\dot{f}}(\omega) = j\omega\,\hat{f}(\omega)$$
+
+二階微分は同じ操作をもう一度繰り返すだけなので
+
+$$\widehat{\ddot{f}}(\omega) = j\omega\cdot j\omega\cdot\hat{f}(\omega) = (j\omega)^2\,\hat{f}(\omega) = -\omega^2\,\hat{f}(\omega)$$
+
+これで冒頭の boxed の式が導けた。
+
+> **直感的なまとめ：** $f(t)$ を「角振動数 $\omega$ の正弦波たち」に分解しておけば、それぞれの正弦波を微分するのは「振幅に $j\omega$ を掛ける」だけ。$\omega$ が大きい正弦波ほど速く振動しているので、微分（傾き）の振幅が大きくなる ─ 「微分が $\omega$ を掛けることになる」ことの物理的な意味はこれ。$j$ が付くのは「微分で位相が 90° 進むから」（$\cos$ を微分すると $-\sin$ になる、つまり 1/4 周期ずれる ─ 複素平面では $j$ を掛けるのが 90° 回転）。
+
+##### 5.2.4 固有値分解との対応（補足）
+
+§4 の固有値問題と並べてみると構造が同じことがわかる：
+
+| | 離散（行列） | 連続（微分演算子） |
+|---|---|---|
+| 線形作用素 | 行列 $A$ | 微分 $d/dt$ |
+| 固有「ベクトル/関数」 | $\boldsymbol{v}_i$ | $e^{j\omega t}$ |
+| 固有値 | $\lambda_i$ | $j\omega$ |
+| 展開 | $\mathbf{x} = \sum c_i \boldsymbol{v}_i$ | $f(t) = \frac{1}{2\pi}\int \hat{f}(\omega)\,e^{j\omega t}d\omega$ |
+| 作用素を通すと | $A\mathbf{x} = \sum (\lambda_i c_i)\boldsymbol{v}_i$ | $\dot{f} = \frac{1}{2\pi}\int (j\omega\hat{f})\,e^{j\omega t}d\omega$ |
+
+「フーリエ変換 = 微分演算子を固有関数基底で対角化する操作」と見なせる。だから2階線形定数係数 ODE の微分作用素 $\frac{d^2}{dt^2} + 2\zeta\omega_n \frac{d}{dt} + \omega_n^2$ がフーリエ変換後には単なる複素数 $-\omega^2 + 2j\zeta\omega_n\omega + \omega_n^2$ になる（次節 §5.3）のは、「行列が固有基底で対角化される」のと同じ現象。
 
 ### 5.3 線形定数係数 ODE への適用パターン
 
