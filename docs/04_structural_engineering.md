@@ -410,15 +410,73 @@ $$\ddot{q}_r + 2\zeta_r\omega_r\,\dot{q}_r + \omega_r^2 q_r = -g_r\,\ddot{u}_g(t
 
 ##### ステップ5：周波数領域で解く
 
-各モードが独立な1自由度系になったので、フーリエ変換（$\ddot{q}_r \to -\omega^2 \hat{q}_r$ など）を施すと閉形式で解ける：
+ステップ4 で得た方程式
 
-$$\hat{q}_r(\omega) = \frac{-g_r}{\omega_r^2 - \omega^2 + 2j\zeta_r\omega_r\omega}\,\hat{\ddot{u}}_g(\omega)$$
+$$\ddot{q}_r + 2\zeta_r\omega_r\,\dot{q}_r + \omega_r^2 q_r = -g_r\,\ddot{u}_g(t)$$
 
-これを $\mathbf{u} = \Phi\mathbf{q}$ で物理座標に戻し、絶対加速度（地盤＋相対）と地盤加速度の比をとると：
+は **時間 $t$ の関数についての微分方程式**。これを **周波数 $\omega$ の関数についての代数方程式（割り算で解ける式）** に変換するのが **フーリエ変換** の役割。
 
-$$H_i(\omega) = 1 + \omega^2 \sum_{r=1}^{4} \frac{\Phi_{ir}\, g_r}{\omega_r^2 - \omega^2 + 2j\zeta_r \omega_r \omega}$$
+フーリエ変換の定義と「微分が掛け算 $j\omega$ に化ける」性質、および2階線形定数係数 ODE への適用パターンは [01_linear_algebra.md §5](01_linear_algebra.md) にまとめてある。鍵となる対応関係だけ再掲：
 
-先頭の $1$ は地盤入力そのもの、$\omega^2$ は変位→加速度の二階微分から来ている。
+| 時間領域 | 周波数領域 |
+|----|----|
+| $f(t)$ | $\hat{f}(\omega)$ |
+| $\dot{f}(t)$ | $j\omega\,\hat{f}(\omega)$ |
+| $\ddot{f}(t)$ | $-\omega^2\,\hat{f}(\omega)$ |
+
+以下、3つの小ステップに分けて FRF まで持っていく。
+
+###### 5-1. モード方程式に適用する
+
+ステップ4 のモード方程式の両辺をフーリエ変換する。$q_r(t) \to \hat{q}_r(\omega)$, $\ddot{u}_g(t) \to \hat{\ddot{u}}_g(\omega)$ と書き、上の対応関係を代入すると：
+
+$$-\omega^2\hat{q}_r + 2\zeta_r\omega_r\,(j\omega)\,\hat{q}_r + \omega_r^2\,\hat{q}_r = -g_r\,\hat{\ddot{u}}_g(\omega)$$
+
+$\hat{q}_r$ について整理：
+
+$$\bigl(\omega_r^2 - \omega^2 + 2j\zeta_r\omega_r\omega\bigr)\,\hat{q}_r = -g_r\,\hat{\ddot{u}}_g$$
+
+両辺を括弧の中身で割れば、**$\hat{q}_r$ が陽に求まる**：
+
+$$\hat{q}_r(\omega) = \frac{-g_r}{\omega_r^2 - \omega^2 + 2j\zeta_r\omega_r\omega}\,\hat{\ddot{u}}_g(\omega) \qquad (\dagger)$$
+
+> **共振がここに現れる：** 分母 $\omega_r^2 - \omega^2 + 2j\zeta_r\omega_r\omega$ は $\omega = \omega_r$ で実部が $0$ になり、虚部の $2j\zeta_r\omega_r^2$ だけが残る。$\zeta_r$ は小さい（数%）ので分母の絶対値も小さくなり、$\hat{q}_r$ が大きく増幅される。これが「共振」の数式的正体。
+
+###### 5-2. 物理座標に戻して加速度の比をとる
+
+$(\dagger)$ はモード座標 $\hat{q}_r$ についての式なので、$\mathbf{u} = \Phi\mathbf{q}$ で物理座標に戻す。$i$ 階の変位の周波数成分は
+
+$$\hat{u}_i(\omega) = \sum_{r=1}^{4} \Phi_{ir}\,\hat{q}_r(\omega)$$
+
+$i$ 階の **相対加速度**（地盤に対する加速度）は対応表の規則で $\hat{\ddot{u}}_i = -\omega^2\,\hat{u}_i$、**絶対加速度**（地面ごと一緒に動く成分も含む）は
+
+$$\ddot{u}_i^{\text{abs}} = \ddot{u}_i + \ddot{u}_g \quad\Longrightarrow\quad \hat{\ddot{u}}_i^{\text{abs}} = -\omega^2\,\hat{u}_i + \hat{\ddot{u}}_g$$
+
+FRF の定義（§4.1）は「絶対加速度 ÷ 地盤加速度」なので
+
+$$H_i(\omega) = \frac{\hat{\ddot{u}}_i^{\text{abs}}}{\hat{\ddot{u}}_g} = 1 + \frac{-\omega^2\,\hat{u}_i}{\hat{\ddot{u}}_g}$$
+
+最初の $1$ は地盤入力がそのまま乗っかっている分（建物が剛体なら $H_i \equiv 1$）。
+
+###### 5-3. $(\dagger)$ を代入してまとめる
+
+$\hat{u}_i = \sum_r \Phi_{ir}\hat{q}_r$ と $(\dagger)$ を上の式に入れる：
+
+$$\frac{-\omega^2\,\hat{u}_i}{\hat{\ddot{u}}_g} = -\omega^2 \sum_{r=1}^{4}\Phi_{ir}\,\frac{\hat{q}_r}{\hat{\ddot{u}}_g} = -\omega^2 \sum_{r=1}^{4}\Phi_{ir}\,\frac{-g_r}{\omega_r^2 - \omega^2 + 2j\zeta_r\omega_r\omega}$$
+
+マイナス符号が2つ重なって消え、$\hat{\ddot{u}}_g$ も約分されて、結局 $\omega$ だけの式になる：
+
+$$\boxed{\;H_i(\omega) = 1 + \omega^2 \sum_{r=1}^{4} \frac{\Phi_{ir}\, g_r}{\omega_r^2 - \omega^2 + 2j\zeta_r \omega_r \omega}\;}$$
+
+各項の出どころ：
+
+- **先頭の $1$** ← 5-2 の絶対加速度の式の $\hat{\ddot{u}}_g/\hat{\ddot{u}}_g$
+- **$\omega^2$** ← 変位 → 加速度の二階微分（$\ddot{f} \to -\omega^2 \hat{f}$）
+- **$\Phi_{ir}$** ← モード座標 → 物理座標の戻し（5-2）
+- **$g_r$** ← 地震がそのモードをどれだけ励起するか（ステップ4）
+- **分母** ← 1自由度系の応答関数（5-1）
+
+**入力 $\hat{\ddot{u}}_g$ が約分で消えるのが重要：** $H_i(\omega)$ は地震波形に依存せず、**建物だけで決まる量**になる。「どんな地震が来てもこの周波数では○倍に増幅される」という建物固有の性質。
 
 | 記号 | 意味 |
 |------|------|

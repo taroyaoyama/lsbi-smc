@@ -86,7 +86,7 @@ lsbi-smc/
 
 | ファイル | 内容 |
 |---------|------|
-| [01_linear_algebra.md](01_linear_algebra.md) | 線形代数、NumPy/SciPy、固有値問題、数値安定性 |
+| [01_linear_algebra.md](01_linear_algebra.md) | 線形代数、NumPy/SciPy、固有値問題、フーリエ変換、数値安定性 |
 | [02_probability.md](02_probability.md) | ベイズ推論、確率論の基礎、MCMC |
 | [03_ml_prerequisites.md](03_ml_prerequisites.md) | 深層学習・VAEの基礎 |
 | [04_structural_engineering.md](04_structural_engineering.md) | 構造工学の背景（FEM、FRF、振動理論、レイリー減衰） |

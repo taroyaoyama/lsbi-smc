@@ -6,15 +6,18 @@
 
 - **ベクトル・行列の演算**（運動方程式、ニューラルネットの線形変換）
 - **固有値問題**（建物の振動モード解析）
+- **フーリエ変換**（FRF の導出、周波数領域での応答計算）
 - **行列分解**（数値的安定性、効率的なサンプリング）
 
 概念の流れ：
 
 ```
-ベクトル・行列・テンソル → 線形変換 → 固有値問題 → 行列分解
-        ↓                    ↓               ↓                ↓
-NumPy配列 → ブロードキャスト → scipy.linalg → scipy.stats
+ベクトル・行列・テンソル → 線形変換 → 固有値問題 → フーリエ変換 → 行列分解
+        ↓                    ↓               ↓               ↓               ↓
+NumPy配列 → ブロードキャスト → scipy.linalg → （周波数領域） → scipy.stats
 ```
+
+フーリエ変換は厳密には線形代数の話ではないが、「関数を直交基底（正弦波）で展開する」という発想は固有値分解の連続版にあたるので、本ドキュメントでまとめて扱う。
 
 ---
 
@@ -236,9 +239,66 @@ $$\Phi^T M \Phi = I, \qquad \Phi^T K \Phi = \mathrm{diag}(\omega_i^2)$$
 
 ---
 
-## 5. 行列分解
+## 5. フーリエ変換の基礎
 
-### 5.1 Cholesky分解
+線形代数で「ベクトルを直交基底で展開する」のと同じ発想で、時間の関数 $f(t)$ を **正弦波という連続的な「基底」で展開** する操作がフーリエ変換。本プロジェクトでは運動方程式を周波数領域で解いて FRF を導出するために使う（[04_structural_engineering.md §4.2.1](04_structural_engineering.md)）。
+
+### 5.1 定義と直感
+
+ある時間波形 $f(t)$ に対して
+
+$$\hat{f}(\omega) = \int_{-\infty}^{\infty} f(t)\,e^{-j\omega t}\,dt$$
+
+- 入力：時間の関数 $f(t)$
+- 出力：周波数の関数 $\hat{f}(\omega)$（一般には複素数）
+- 振幅 $|\hat{f}(\omega)|$ は「周波数 $\omega$ で揺れている強さ」
+
+逆変換（周波数 → 時間）も同様に積分で定義され、両者は1対1対応する。**情報を失わずに「視点」を変えているだけ**。
+
+直感的には「波形 $f(t)$ を $e^{j\omega t}$（角振動数 $\omega$ の純粋な正弦波）の重ね合わせとして書き表すと、それぞれの $\omega$ 成分がどれだけ入っているか」を測る操作。線形代数の「ベクトルを直交基底に分解する内積」の連続版と思えばよい。
+
+### 5.2 鍵となる性質：微分が掛け算になる
+
+$f(t)$ を $e^{j\omega t}$ の重ね合わせと見ると、時間微分 $d/dt$ は $e^{j\omega t}$ に対して $j\omega$ を掛けるだけの操作になる：
+
+$$\frac{d}{dt}\,e^{j\omega t} = j\omega\,e^{j\omega t}$$
+
+これが各成分について成り立つので、線形性により
+
+$$\boxed{\;\mathcal{F}[\dot{f}] = j\omega\,\hat{f}, \qquad \mathcal{F}[\ddot{f}] = (j\omega)^2\,\hat{f} = -\omega^2\,\hat{f}\;}$$
+
+これがフーリエ変換を使う最大の理由：**微分方程式（解くのが面倒）が代数方程式（割り算で解ける）に変わる**。
+
+> **固有値分解との対応：** $e^{j\omega t}$ は微分演算子 $d/dt$ の固有関数で、固有値が $j\omega$。フーリエ変換は「$d/dt$ という線形演算子を固有関数基底で対角化する操作」と見なせる。§4 の固有値問題が**離散の世界**（行列を固有ベクトル基底で対角化）だったのに対し、フーリエ変換は**連続の世界**での同じ操作。だから「座標変換で微分作用素 $\frac{d^2}{dt^2} + 2\zeta\omega_r \frac{d}{dt} + \omega_r^2$ が $-\omega^2 + 2j\zeta\omega_r\omega + \omega_r^2$ という単なる複素数の掛け算になる」のは、「行列が固有基底で対角化される」のと同じ現象。
+
+### 5.3 線形定数係数 ODE への適用パターン
+
+本プロジェクトで使う典型例：2階線形定数係数の常微分方程式
+
+$$\ddot{q}(t) + 2\zeta\omega_n\dot{q}(t) + \omega_n^2\,q(t) = f(t)$$
+
+の両辺をフーリエ変換すると、5.2 の規則で各項が
+
+| 時間領域 | 周波数領域 |
+|----|----|
+| $q(t)$ | $\hat{q}(\omega)$ |
+| $\dot{q}(t)$ | $j\omega\,\hat{q}(\omega)$ |
+| $\ddot{q}(t)$ | $-\omega^2\,\hat{q}(\omega)$ |
+| $f(t)$ | $\hat{f}(\omega)$ |
+
+に置き換わり、$\hat{q}$ について整理するだけで
+
+$$\hat{q}(\omega) = \frac{\hat{f}(\omega)}{\omega_n^2 - \omega^2 + 2j\zeta\omega_n\omega}$$
+
+と**割り算一発で陽に解ける**。分母 $\omega_n^2 - \omega^2 + 2j\zeta\omega_n\omega$ は「1自由度系の伝達関数」と呼ばれ、$\omega = \omega_n$ で実部が $0$ になって絶対値が極小になる。これが**共振**の数式的正体。
+
+このパターンは [04_structural_engineering.md §4.2.1](04_structural_engineering.md) の FRF 導出で、各モードに対してそのまま適用される。
+
+---
+
+## 6. 行列分解
+
+### 6.1 Cholesky分解
 
 正定値対称行列 $A$ を下三角行列 $L$ で分解：
 
@@ -250,7 +310,7 @@ $$A = LL^T$$
 L = np.linalg.cholesky(A)             # A = L @ L.T
 ```
 
-### 5.2 多変量正規分布のサンプリング
+### 6.2 多変量正規分布のサンプリング
 
 平均 $\boldsymbol{\mu}$、共分散 $\Sigma$ の多変量正規分布からサンプリングするには：
 
@@ -268,9 +328,9 @@ z = mu + sigma * epsilon         # epsilon ~ N(0, 1)
 
 ---
 
-## 6. NumPy の便利な機能
+## 7. NumPy の便利な機能
 
-### 6.1 配列生成
+### 7.1 配列生成
 
 ```python
 np.zeros((3, 4))                  # 全要素0、shape (3, 4)
@@ -280,7 +340,7 @@ np.arange(0, 10, 0.5)              # 等差数列 [0, 0.5, 1.0, ..., 9.5]
 np.linspace(0, 1, 11)              # 区間 [0, 1] を 11等分
 ```
 
-### 6.2 形状操作
+### 7.2 形状操作
 
 ```python
 A = np.zeros((6,))
@@ -291,7 +351,7 @@ np.squeeze(B)                       # サイズ1の軸を削除
 A[..., :10]                         # `...` は省略記号（残りの軸全て）
 ```
 
-### 6.3 集約関数（reduction）
+### 7.3 集約関数（reduction）
 
 ```python
 A.sum()                            # 全要素の和
@@ -309,7 +369,7 @@ A.sum(axis=1).shape                # (3, 5)  ← 軸1が消える
 A.sum(axis=(0, 2)).shape           # (4,)    ← 軸0と軸2が消える
 ```
 
-### 6.4 インデックス・スライシング
+### 7.4 インデックス・スライシング
 
 ```python
 A[0]                               # 0行目
@@ -321,7 +381,7 @@ A[A > 0]                           # 条件にマッチする要素のみ
 
 [train.py](../src/lsbi_smc/example_shear4dof/train.py) での `y[:, [-1], :, :]` は「全サンプル × 最後の階（屋根）のみを軸を保ったまま抽出」。`[-1]` だと軸が潰れて `(N, 1024)` になるが、`[[-1]]` だと `(N, 1, 1, 1024)` を保てる。
 
-### 6.5 入出力
+### 7.5 入出力
 
 ```python
 np.savez("data.npz", x=x_array, y=y_array)   # 複数配列を保存
@@ -333,11 +393,11 @@ x = data["x"]
 
 ---
 
-## 7. SciPy の主要モジュール
+## 8. SciPy の主要モジュール
 
 本プロジェクトで使う SciPy の機能を概観する。
 
-### 7.1 `scipy.linalg`
+### 8.1 `scipy.linalg`
 
 NumPy にもある `np.linalg` の上位互換的な線形代数ライブラリ。`eigh`, `solve`, `cholesky` など、より多機能・高性能。
 
@@ -347,7 +407,7 @@ from scipy.linalg import eigh, cholesky, solve
 
 本プロジェクトでは `eigh` を [frfshearm.py:39](../src/lsbi_smc/example_shear4dof/frfshearm.py#L39) で使用。
 
-### 7.2 `scipy.stats`
+### 8.2 `scipy.stats`
 
 確率分布の操作・サンプリングを担う。
 
@@ -367,7 +427,7 @@ norm.rvs(size=10)                   # サンプリング
 y_sim_n = y_sim + noise_level * norm.rvs(size=y_sim.shape)
 ```
 
-### 7.3 `scipy.stats.qmc`（準モンテカルロ）
+### 8.3 `scipy.stats.qmc`（準モンテカルロ）
 
 ラテン超方格法（Latin Hypercube Sampling）など、空間を均一にカバーするサンプリング手法：
 
@@ -380,7 +440,7 @@ x = sampler.random(n=100000)        # shape (100000, 4) を [0,1]^4 でサンプ
 
 [create_dataset.py](../src/lsbi_smc/example_shear4dof/create_dataset.py) でパラメータサンプリングに使用。一様乱数より少ないサンプルで空間を均等にカバーできる。
 
-### 7.4 `scipy.io`
+### 8.4 `scipy.io`
 
 MATLAB 形式（`.mat`）のファイル入出力：
 
@@ -394,7 +454,7 @@ data = sio.loadmat("posterior.mat")
 
 ---
 
-## 8. NumPy ⇄ PyTorch の対応
+## 9. NumPy ⇄ PyTorch の対応
 
 PyTorch のテンソルは NumPy 配列とほぼ同じ API を持つ。本プロジェクトでは、シミュレーション側（NumPy）と学習・推論側（PyTorch）でデータを変換する。
 
@@ -417,9 +477,9 @@ PyTorch 特有の概念：
 
 ---
 
-## 9. 数値計算の落とし穴
+## 10. 数値計算の落とし穴
 
-### 9.1 浮動小数点の桁落ち
+### 10.1 浮動小数点の桁落ち
 
 「ほぼ等しい2つの値の引き算」で精度が大きく落ちる：
 
@@ -432,7 +492,7 @@ PyTorch 特有の概念：
 - 対数スケールで計算する（後述）
 - `numpy.float64` を使う（デフォルト）
 
-### 9.2 オーバーフロー・アンダーフロー
+### 10.2 オーバーフロー・アンダーフロー
 
 確率密度の積は容易に 0 や ∞ になる：
 
@@ -446,7 +506,7 @@ $$\log(p_1 \cdot p_2 \cdots p_n) = \sum_i \log p_i$$
 
 本プロジェクトでも、尤度・事前分布は **すべて log で実装** されている（`logpdf`, `log_prob` など）。
 
-### 9.3 `logsumexp` トリック
+### 10.3 `logsumexp` トリック
 
 「対数の和」を「指数の和の対数」に戻すと、再びオーバーフローの危険がある：
 
@@ -458,7 +518,7 @@ $$\log\!\left(\sum_i e^{a_i}\right) = a_{\max} + \log\!\left(\sum_i e^{a_i - a_{
 
 NumPy なら `scipy.special.logsumexp`、PyTorch なら `torch.logsumexp` を使えばこれを安全に計算してくれる。SMC の重み正規化でも頻出のテクニック。
 
-### 9.4 数値安定化のイディオム
+### 10.4 数値安定化のイディオム
 
 本プロジェクトのコードで頻出するパターン：
 
