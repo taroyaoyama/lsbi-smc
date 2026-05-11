@@ -204,15 +204,102 @@ def __call__(self, theta):
     ...
 ```
 
-SMCは無制約空間（$\mathbb{R}$）でサンプリングするが、実際のパラメータは $[0.33, 3.00]$ に制限されている。
+### 6.1 なぜ変換が必要か：3 つの空間
 
-**解決策**：標準正規分布 $\mathcal{N}(0,1)$ の CDF $\Phi$ を使って変換：
+本実装では、$\theta$ が **3 つの異なる空間** を行き来する。
+まずこれを整理することが鍵になる。
 
-$$\theta_{\text{physical}} = \Phi(\theta_{\text{latent}}) \times (U - L) + L$$
+| 空間 | 範囲 | 用途 |
+|------|------|------|
+| **無制約空間** $\theta_{\text{latent}}$ | $\mathbb{R}$（実数全体） | SMC のサンプリング・MCMC カーネル |
+| **正規化空間** $\theta_{\text{norm}}$ | $[0, 1]$ | MVAE の入力（学習時もこのスケール） |
+| **物理空間** $\theta_{\text{phys}}$ | $[L, U] = [0.33, 3.00]$ | シミュレーター入力・最終出力 |
 
-- SMC は $\theta_{\text{latent}} \in \mathbb{R}$ を自由に探索
-- 実際の計算には $\theta_{\text{physical}} \in [L, U] = [0.33, 3.00]$ を使用
-- 事前分布は $\mathcal{N}(0, 1)$（一様分布を正規 CDF で変換した等価表現）
+各空間は以下の写像で繋がっている：
+
+$$\theta_{\text{latent}} \xrightarrow{\ \Phi(\cdot)\ } \theta_{\text{norm}} \xrightarrow{\ (U-L)\cdot + L\ } \theta_{\text{phys}}$$
+
+ここで $\Phi$ は標準正規分布 $\mathcal{N}(0,1)$ の累積分布関数（CDF）。
+
+**なぜ無制約空間でサンプリングするのか？**
+SMC の中で動く RW-Metropolis カーネル（[kernel.py](../src/lsbi_smc/smc/kernel.py)）は
+ガウス提案 $\theta' = \theta + \epsilon$ を使う。
+もし直接 $[L, U]$ 上でサンプリングすると、提案が境界を越えるたびに
+棄却または反射の処理が必要になる。
+$\theta_{\text{latent}} \in \mathbb{R}$ なら**境界が存在しない**ので、
+カーネルがシンプルに保てる。
+
+### 6.2 確率積分変換（Probability Integral Transform）
+
+CDF 変換のキモは、次の古典的な事実：
+
+> $X \sim \mathcal{N}(0, 1)$ ならば、$\Phi(X) \sim \text{Uniform}(0, 1)$ である。
+
+直観的には：
+- $\Phi$ は $\mathbb{R}$ を $[0, 1]$ に**単調に押し込む** S 字曲線
+- ガウス分布の「中央が密で裾が疎」という偏りと、$\Phi$ の「中央で傾きが急、裾で緩い」という形が**ちょうど打ち消し合う**
+- 結果として、$\Phi(X)$ は $[0, 1]$ 上で一様分布になる
+
+```
+     θ_latent ~ N(0,1)         Φ(θ_latent) ~ Uniform(0,1)
+        ▲                              ▲
+        │  ╱╲                          │ ──────────
+        │ ╱  ╲                         │
+        │╱    ╲       ──Φ─→            │
+        └──────────►                   └──────────►
+       -3  0   3                       0    0.5    1
+```
+
+これを線形に伸ばせば、$\theta_{\text{phys}} = \Phi(\theta_{\text{latent}})(U-L) + L$ は
+$[L, U]$ 上の一様分布になる。
+
+### 6.3 事前分布の等価性
+
+[inference.py:97](../src/lsbi_smc/example_shear4dof/inference.py#L97) では事前分布を
+$\mathcal{N}(0, 1)$ と定義している：
+
+```python
+variables = [Normal(label, Constant(0.0), Constant(1.0)) for label in k_labels]
+```
+
+これは「$\theta_{\text{latent}} \sim \mathcal{N}(0,1)$」を意味する。
+6.2 の事実から、これは**物理空間で見れば $\theta_{\text{phys}} \sim \text{Uniform}(L, U)$ という一様事前分布と等価**である。
+
+つまり同じ「$[L, U]$ 上の無情報事前分布」を、座標系を変えて表現しているだけ：
+
+| 座標系 | 事前分布の表現 |
+|--------|---------------|
+| 物理空間 $\theta_{\text{phys}}$ | $\text{Uniform}(L, U)$ |
+| 無制約空間 $\theta_{\text{latent}}$ | $\mathcal{N}(0, 1)$ |
+
+サンプリングが楽な座標系として後者を選んでいる、と理解すればよい。
+
+### 6.4 コード上での2つの登場箇所
+
+CDF 変換は inference スクリプト内で **2 箇所** に現れる。
+役割が違うので注意する。
+
+**(a) 尤度評価の直前** — [inference.py:87](../src/lsbi_smc/example_shear4dof/inference.py#L87)
+
+```python
+def __call__(self, theta):
+    theta = stdnorm.cdf(theta)   # θ_latent (∈ℝ) → θ_norm (∈[0,1])
+    return super().__call__(theta, alp=1.0, tau=0.00)
+```
+
+ここでは `enc_w` に入力するために $[0, 1]$ スケール（正規化空間）に変換する。
+MVAE の学習時も入力は $[0, 1]$ だったので、推論時もそれに合わせる必要がある。
+
+**(b) SMC 終了後の出力変換** — [inference.py:123-125](../src/lsbi_smc/example_shear4dof/inference.py#L123-L125)
+
+```python
+pop = smc1.pops[-1].detach().cpu().numpy()  # θ_latent
+pop = norm.cdf(pop)                          # → θ_norm
+pop = pop * (ULIM - LLIM) + LLIM             # → θ_phys
+```
+
+事後分布のサンプルを人間が読める物理スケール（剛性比）に戻す処理。
+2 段階の変換 $\theta_{\text{latent}} \to \theta_{\text{norm}} \to \theta_{\text{phys}}$ がそのままコードに対応している。
 
 ---
 
