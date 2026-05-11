@@ -356,13 +356,69 @@ FRFを見ることで、どの周波数帯域で建物が大きく揺れるか�
 
 #### 4.2.1 数学的導出のあらまし
 
-§3.4.3 のモード直交性により、運動方程式は **モード座標 $\mathbf{q}(t) = \Phi^{-1}\mathbf{u}(t)$** に変換すると完全に分離する：
+§3.4.3 のモード直交性により、運動方程式は **モード座標 $\mathbf{q}(t) = \Phi^{-1}\mathbf{u}(t)$** に変換すると完全に分離する。以下、§3.2 の運動方程式から各モードの 1 自由度形式まで 4 ステップで導く。
 
-$$\ddot{q}_r + 2\zeta_r\omega_r \dot{q}_r + \omega_r^2 q_r = -g_r \ddot{u}_g(t), \qquad g_r = \boldsymbol{\phi}_r^T M \mathbf{1}$$
+##### 出発点（§3.2）
 
-各モードは独立な1自由度系。周波数領域で解くと（フーリエ変換して整理）：
+$$M\ddot{\mathbf{u}}(t) + C\dot{\mathbf{u}}(t) + K\mathbf{u}(t) = -M\mathbf{1}\,\ddot{u}_g(t) \qquad (\star)$$
+
+$\mathbf{u}\in\mathbb{R}^4$ は物理座標（各階の変位）。
+
+##### ステップ1：モード座標への変数変換
+
+モード行列 $\Phi = [\boldsymbol{\phi}_1,\ldots,\boldsymbol{\phi}_4]$ を用いて新しい変数 $\mathbf{q}(t)$ を導入：
+
+$$\mathbf{u}(t) = \Phi\,\mathbf{q}(t) \qquad (\text{逆に書けば } \mathbf{q} = \Phi^{-1}\mathbf{u})$$
+
+$\Phi$ は時間に依存しない定数行列なので時間微分が素直に通り、$\dot{\mathbf{u}} = \Phi\dot{\mathbf{q}}$, $\ddot{\mathbf{u}} = \Phi\ddot{\mathbf{q}}$。これを $(\star)$ に代入：
+
+$$M\Phi\ddot{\mathbf{q}} + C\Phi\dot{\mathbf{q}} + K\Phi\mathbf{q} = -M\mathbf{1}\,\ddot{u}_g(t)$$
+
+この時点ではまだ各成分が結合していて、何も嬉しくない。
+
+##### ステップ2：左から $\Phi^T$ を掛ける
+
+$$\Phi^T M\Phi\,\ddot{\mathbf{q}} + \Phi^T C\Phi\,\dot{\mathbf{q}} + \Phi^T K\Phi\,\mathbf{q} = -\Phi^T M\mathbf{1}\,\ddot{u}_g(t) \qquad (\star\star)$$
+
+なぜ左から $\Phi^T$ か：3つの行列ペア $\Phi^T M\Phi$, $\Phi^T C\Phi$, $\Phi^T K\Phi$ が次ステップで**同時に対角化**されるから。
+
+##### ステップ3：3つの直交性で対角化
+
+§3.4.3・§3.5.3・§3.5.4 の結果をそのまま使う：
+
+| 項 | 値 | 由来 |
+|----|----|----|
+| $\Phi^T M\Phi$ | $I$ | M-直交性（§3.4.3） |
+| $\Phi^T K\Phi$ | $\mathrm{diag}(\omega_r^2)$ | K-直交性（§3.4.3） |
+| $\Phi^T C\Phi$ | $\mathrm{diag}(a_0 + a_1\omega_r^2) = \mathrm{diag}(2\zeta_r\omega_r)$ | レイリー減衰 + §3.5.4 の $a_0 + a_1\omega_r^2 = 2\zeta_r\omega_r$ |
+
+これらを $(\star\star)$ に入れると左辺の行列はすべて対角になる：
+
+$$\ddot{\mathbf{q}} + \mathrm{diag}(2\zeta_r\omega_r)\,\dot{\mathbf{q}} + \mathrm{diag}(\omega_r^2)\,\mathbf{q} = -\Phi^T M\mathbf{1}\,\ddot{u}_g(t)$$
+
+##### ステップ4：励起係数を定義して成分ごとに書き下す
+
+右辺のベクトル $\Phi^T M\mathbf{1}$ の第 $r$ 成分を **励起係数**
+
+$$g_r \;\equiv\; \boldsymbol{\phi}_r^T M\mathbf{1}$$
+
+と置く。左辺は対角なので各行は $r$ 番目の成分しか含まず、行 $r$ を抜き出すと
+
+$$\ddot{q}_r + 2\zeta_r\omega_r\,\dot{q}_r + \omega_r^2 q_r = -g_r\,\ddot{u}_g(t), \qquad r=1,\ldots,4$$
+
+**4 自由度の連立系が、互いに独立な4つの1自由度系に完全分離した**。これがモード重ね合わせ法の核心。
+
+##### ステップ5：周波数領域で解く
+
+各モードが独立な1自由度系になったので、フーリエ変換（$\ddot{q}_r \to -\omega^2 \hat{q}_r$ など）を施すと閉形式で解ける：
+
+$$\hat{q}_r(\omega) = \frac{-g_r}{\omega_r^2 - \omega^2 + 2j\zeta_r\omega_r\omega}\,\hat{\ddot{u}}_g(\omega)$$
+
+これを $\mathbf{u} = \Phi\mathbf{q}$ で物理座標に戻し、絶対加速度（地盤＋相対）と地盤加速度の比をとると：
 
 $$H_i(\omega) = 1 + \omega^2 \sum_{r=1}^{4} \frac{\Phi_{ir}\, g_r}{\omega_r^2 - \omega^2 + 2j\zeta_r \omega_r \omega}$$
+
+先頭の $1$ は地盤入力そのもの、$\omega^2$ は変位→加速度の二階微分から来ている。
 
 | 記号 | 意味 |
 |------|------|
