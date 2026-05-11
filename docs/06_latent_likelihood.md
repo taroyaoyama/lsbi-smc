@@ -47,52 +47,116 @@ $$\approx \hat{L}(\theta; x_{\text{obs}}) := \int_Z \frac{q_{\phi_x}(z | x_{\tex
 
 **三つの分布がすべてガウス分布**であることが鍵：
 
-$$q_{\phi_x}(z | x) = \mathcal{N}(z | \mu_1, \sigma_1^2)$$
+$$q_{\phi_x}(z | x_{\text{obs}}) = \mathcal{N}(z | \mu_1, \sigma_1^2)$$
 $$q_{\phi_\theta}(z | \theta) = \mathcal{N}(z | \mu_2, \sigma_2^2)$$
 $$p(z) = \mathcal{N}(z | \mu_3, \sigma_3^2) = \mathcal{N}(z | 0, 1)$$
 
-積分を計算する（各次元独立なので1次元で考える）：
+エンコーダの出力は対角共分散ガウスなので、$z$ の各次元は独立に積分できる。
+以下では1次元の場合を導出し、最後に各次元の和をとる。
 
-$$\int_{-\infty}^{\infty} \frac{\mathcal{N}(z|\mu_1, \sigma_1^2) \cdot \mathcal{N}(z|\mu_2, \sigma_2^2)}{\mathcal{N}(z|\mu_3, \sigma_3^2)} dz$$
+評価する積分は：
 
-分子の積と分母は全てガウス型なので、この積分は**解析的に計算可能**。
+$$I := \int_{-\infty}^{\infty} \frac{\mathcal{N}(z|\mu_1, \sigma_1^2) \cdot \mathcal{N}(z|\mu_2, \sigma_2^2)}{\mathcal{N}(z|\mu_3, \sigma_3^2)} dz$$
 
-### 導出の詳細
+### Step 1: 正規化定数を被積分関数の外へ括り出す
 
-各ガウス分布の対数を取ると：
+各ガウス分布を **正規化定数 × 指数項** に分解する：
 
-$$\log \text{numerator} = -\frac{(z-\mu_1)^2}{2\sigma_1^2} - \frac{(z-\mu_2)^2}{2\sigma_2^2} + \text{const}$$
-$$\log \text{denominator} = -\frac{(z-\mu_3)^2}{2\sigma_3^2} + \text{const}$$
+$$\mathcal{N}(z|\mu_i, \sigma_i^2) = \frac{1}{\sqrt{2\pi\sigma_i^2}} \exp\!\left(-\frac{(z-\mu_i)^2}{2\sigma_i^2}\right)$$
 
-被積分関数の対数は $z$ の二次式：
+これを $I$ に代入し、$z$ に依存しない正規化定数を積分の外に出す：
 
-$$\log f(z) = -az^2 - bz - c + \text{const}$$
+$$I = \underbrace{\frac{\dfrac{1}{\sqrt{2\pi\sigma_1^2}} \cdot \dfrac{1}{\sqrt{2\pi\sigma_2^2}}}{\dfrac{1}{\sqrt{2\pi\sigma_3^2}}}}_{=:\, d} \int_{-\infty}^{\infty} \exp\!\left(-\frac{(z-\mu_1)^2}{2\sigma_1^2} - \frac{(z-\mu_2)^2}{2\sigma_2^2} + \frac{(z-\mu_3)^2}{2\sigma_3^2}\right) dz$$
 
-ここで：
+ここで定義した前因子 $d$ を整理すると：
 
-$$a = \frac{1}{2\sigma_1^2} + \frac{1}{2\sigma_2^2} - \frac{1}{2\sigma_3^2}$$
-$$b = -\frac{\mu_1}{\sigma_1^2} - \frac{\mu_2}{\sigma_2^2} + \frac{\mu_3}{\sigma_3^2}$$
+$$d = \sqrt{\frac{2\pi\sigma_3^2}{(2\pi\sigma_1^2)(2\pi\sigma_2^2)}} = \sqrt{\frac{\sigma_3^2}{2\pi \sigma_1^2 \sigma_2^2}}$$
 
-ガウス積分 $\int e^{-az^2 + bz} dz = \sqrt{\pi/a} \cdot e^{b^2/(4a)}$ を適用すると：
+これがコード [latentlik.py:32](../src/lsbi_smc/likelihood/latentlik.py#L32) の
+`d = sqrt(vr3 / (2*pi*vr1*vr2))` に対応する。
+要するに **$d$ は3つのガウス分布の正規化定数を組み合わせたもの**で、
+積分の外に定数として括り出した結果として現れている。
 
-$$\hat{L}(\theta; x_{\text{obs}}) = d \cdot e^{(b^2 - 4ac)/(4a)} \cdot \sqrt{\pi/a}$$
+### Step 2: 指数の中身を $z$ の二次式として整理
+
+各二次項を展開する：
+
+$$-\frac{(z-\mu_i)^2}{2\sigma_i^2} = -\frac{z^2}{2\sigma_i^2} + \frac{\mu_i z}{\sigma_i^2} - \frac{\mu_i^2}{2\sigma_i^2}$$
+
+3つの寄与（$i=1,2$ は負、$i=3$ は正）をまとめると、指数の中身は $z$ の二次式 $-az^2 - bz - c$ となる：
+
+$$
+\begin{aligned}
+a &= \frac{1}{2\sigma_1^2} + \frac{1}{2\sigma_2^2} - \frac{1}{2\sigma_3^2} \\
+b &= -\frac{\mu_1}{\sigma_1^2} - \frac{\mu_2}{\sigma_2^2} + \frac{\mu_3}{\sigma_3^2} \\
+c &= \frac{\mu_1^2}{2\sigma_1^2} + \frac{\mu_2^2}{2\sigma_2^2} - \frac{\mu_3^2}{2\sigma_3^2}
+\end{aligned}
+$$
+
+これらは [latentlik.py:28-31](../src/lsbi_smc/likelihood/latentlik.py#L28-L31) の `a, b, c` と一致する。
+
+> **収束条件**：積分が有限値に収束するには $a > 0$、すなわち
+> $\dfrac{1}{\sigma_1^2} + \dfrac{1}{\sigma_2^2} > \dfrac{1}{\sigma_3^2}$ が必要。
+> 本実装では $\sigma_3^2 = 1$（事前分布）でエンコーダが出力する $\sigma_1^2, \sigma_2^2$ は通常十分小さいので、この条件は自然に満たされる。
+
+### Step 3: 平方完成によりガウス積分の標準形に帰着
+
+積分は
+
+$$I = d \cdot \int_{-\infty}^{\infty} \exp(-az^2 - bz - c)\, dz = d \cdot e^{-c} \int_{-\infty}^{\infty} \exp(-az^2 - bz)\, dz$$
+
+指数部を $z$ について平方完成する：
+
+$$-az^2 - bz = -a\!\left(z^2 + \frac{b}{a}z\right) = -a\!\left(z + \frac{b}{2a}\right)^2 + \frac{b^2}{4a}$$
+
+これを代入して定数項を積分の外に出す：
+
+$$\int_{-\infty}^{\infty} \exp(-az^2 - bz)\, dz = e^{b^2/(4a)} \int_{-\infty}^{\infty} \exp\!\left(-a\!\left(z + \tfrac{b}{2a}\right)^2\right) dz$$
+
+平行移動 $u = z + b/(2a)$ により、標準ガウス積分
+
+$$\int_{-\infty}^{\infty} e^{-au^2}\, du = \sqrt{\frac{\pi}{a}} \quad (a > 0)$$
+
+に帰着する。したがって：
+
+$$I = d \cdot e^{-c} \cdot e^{b^2/(4a)} \cdot \sqrt{\frac{\pi}{a}} = d \cdot \exp\!\left(\frac{b^2 - 4ac}{4a}\right) \cdot \sqrt{\frac{\pi}{a}}$$
+
+（最後の等式では $b^2/(4a) - c = (b^2 - 4ac)/(4a)$ を使った。）
+
+### Step 4: 対数をとり各次元の和をとる
+
+対数をとると：
+
+$$\log I = \log d + \frac{b^2 - 4ac}{4a} + \frac{1}{2}\log\frac{\pi}{a}$$
+
+これが [latentlik.py:34](../src/lsbi_smc/likelihood/latentlik.py#L34) の式そのもの。
+
+最後に、潜在変数の各次元 $j = 1, \ldots, n_z$ は独立なので、
+全次元での対数尤度は単純な和：
+
+$$\log \hat{L}(\theta; x_{\text{obs}}) = \sum_{j=1}^{n_z} \log I_j$$
+
+これがコード [latentlik.py:37](../src/lsbi_smc/likelihood/latentlik.py#L37) の
+`return torch.sum(lp, dim=1)` に対応する。
+
+### コードとの対応
 
 ```python
 # latentlik.py: latent_space_loglik 関数
 def latent_space_loglik(mu_obs, vr_obs, mu_sim, vr_sim, alp=0.0, tau=1e-4, mu_pri=0.0, vr_pri=1.0, eps=0.0):
-    vr1 = mu_obs の分散 (観測FRFから)
-    vr2 = (1 + alp) * vr_sim + tau  (パラメータから、不確かさ調整つき)
-    vr3 = vr_pri = 1.0  (事前分布の分散)
-    mu1 = mu_obs
-    mu2 = mu_sim
-    mu3 = mu_pri = 0.0
+    vr1 = vr_obs                       # σ₁²: 観測 FRF の潜在分散
+    vr2 = (1 + alp) * vr_sim + tau     # σ₂²: パラメータの潜在分散（不確かさ補正つき）
+    vr3 = vr_pri = 1.0                 # σ₃²: 事前分布の分散
+    mu1 = mu_obs                       # μ₁
+    mu2 = mu_sim                       # μ₂
+    mu3 = mu_pri = 0.0                 # μ₃
 
-    a = 1/(2*vr1) + 1/(2*vr2) - 1/(2*vr3)
-    b = -(mu1/vr1) - (mu2/vr2) + (mu3/vr3)
-    c = mu1**2/(2*vr1) + mu2**2/(2*vr2) - mu3**2/(2*vr3)
-    d = sqrt(vr3 / (2*pi*vr1*vr2))
+    a = 1/(2*vr1) + 1/(2*vr2) - 1/(2*vr3)                     # Step 2
+    b = -(mu1/vr1) - (mu2/vr2) + (mu3/vr3)                    # Step 2
+    c = mu1**2/(2*vr1) + mu2**2/(2*vr2) - mu3**2/(2*vr3)      # Step 2
+    d = sqrt(vr3 / (2*pi*vr1*vr2))                            # Step 1: 正規化定数の前因子
 
-    # 対数尤度（各潜在次元の和）
+    # 対数尤度 = log d + (b²-4ac)/(4a) + (1/2)log(π/a)
     lp = log(d) + (b**2 - 4*a*c)/(4*a) + 0.5*log(pi/a)
     return sum(lp, dim=1)  # 全 z_dim 次元の和
 ```
