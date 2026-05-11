@@ -1,238 +1,462 @@
 # Sequential Monte Carlo (SMC) サンプラー
 
+本章は SMC の理論と実装を、[02_probability.md](02_probability.md) で導入した
+「テンパリング・重点サンプリング・MCMC」を一本の流れに統合する形で解説する。
+02 章では各要素と全体像を概念レベルで紹介したが、ここでは数式・アルゴリズム・
+コードの 3 つの層で再度組み立て直す。
+
+---
+
 ## 1. なぜ SMC が必要なのか
 
-### MCMC の問題点
-通常の MCMC（例：Random Walk MH）の問題：
-- **多峰性に弱い**：局所的なモードにトラップされやすい
-- **高次元で効率が悪い**：パラメータ空間が広いほど混合が遅い
+### 1.1 MCMC 単独の限界
 
-### SMC の解決策
-**段階的な温度スケジューリング（アニーリング）**：
+通常の MCMC（例：Random Walk Metropolis-Hastings、[02 章 §8.7](02_probability.md)）には次の弱点がある：
 
-$$\text{事前分布 } p(\theta) \xrightarrow{\beta_1} \xrightarrow{\beta_2} \cdots \xrightarrow{\beta_T=1} \text{事後分布 } p(\theta | x_{\text{obs}})$$
+- **多峰性に弱い**：尤度の地形にいくつも山があるとき、最初に到達したモードから抜け出せないことが多い（[02 章 §8.9](02_probability.md)）
+- **バーンインが長い**：事前分布の散らばった初期点から事後分布の山に辿り着くまでに、棄却ばかりが続く期間が必要
+- **高次元で混合が遅い**：パラメータが増えるほどランダムウォークが空間を覆い切るのに時間がかかる
 
-各ステップで尤度の影響を徐々に強めることで、多峰性の探索が可能になる。
+これらは「**事前分布と事後分布の形があまりに違いすぎる**」ことに根ざしている。
+事後分布は鋭い山を持つ複雑な分布だが、いきなりそこを目標にすると山を見つけられない。
 
----
+### 1.2 SMC の発想：滑らかに繋ぐ
 
-## 2. SMC の基本アルゴリズム
+SMC は「**事前分布 → 事後分布を一気に飛ばず、間に滑らかな中間分布列を挟む**」ことで解決する。
+このアイデアそのものは **テンパリング**（[02 章 §8.10](02_probability.md)）。
+SMC はテンパリングを **粒子集合 + 重点サンプリング + MCMC** の枠組みで実行する手法、
+と理解するとよい。
 
-### 中間分布（Tempered Distribution）
+$$
+\underbrace{p(\theta)}_{\beta_0 = 0\ \text{(事前)}}
+\ \xrightarrow{\beta_1}\ \pi_{\beta_1}
+\ \xrightarrow{\beta_2}\ \pi_{\beta_2}
+\ \xrightarrow{\cdots}\ \pi_{\beta_{T-1}}
+\ \xrightarrow{\beta_T = 1}\ \underbrace{p(\theta \mid x_{\text{obs}})}_{\text{事後}}
+$$
 
-$$\pi_t(\theta) \propto \hat{L}(\theta; x_{\text{obs}})^{\beta_t} \cdot p(\theta), \quad 0 = \beta_0 < \beta_1 < \cdots < \beta_T = 1$$
-
-- $\beta_t = 0$：事前分布 $p(\theta)$（尤度を全く考慮しない）
-- $\beta_t = 1$：事後分布 $p(\theta | x_{\text{obs}})$
-
-### メインループ
-
-```
-初期化：
-    粒子 {θ^(n)}_{n=1}^N を事前分布 p(θ) からサンプリング
-
-繰り返し（t = 1, 2, ..., T まで）:
-    1. β_t を決定（ESS に基づく）
-    2. リサンプリング（重み付きサンプリングで多様性を保つ）
-    3. MCMC ムーブ（粒子を中間分布に従って移動）
-```
+各ステップで粒子集合を更新し、最後の $\beta = 1$ に到達した時点の粒子が事後分布のサンプルになる。
 
 ---
 
-## 3. テンパリングパラメータ β の決定
+## 2. 中間分布列とテンパリング
 
-### 有効サンプルサイズ (ESS)
+### 2.1 中間分布の定義
 
-$$\text{ESS}(\beta) = \frac{\left(\sum_n w_n(\beta)\right)^2}{\sum_n w_n(\beta)^2}$$
+「事後分布の尤度部分だけを $\beta$ 乗する」ことで、事前から事後を繋ぐ分布列を作る：
 
-重み：$w_n(\beta) \propto \hat{L}(\theta^{(n)})^{\beta - \beta_{t-1}}$
+$$\pi_\beta(\theta) = \frac{1}{Z_\beta}\, \hat{L}(\theta; x_{\text{obs}})^{\beta} \cdot p(\theta), \qquad 0 = \beta_0 < \beta_1 < \cdots < \beta_T = 1$$
 
-- ESS = N：全粒子が等重み（理想的）
-- ESS = 1：1粒子に全重みが集中（非効率）
+ここで $\hat{L}(\theta; x_{\text{obs}})$ は [06 章](06_latent_likelihood.md) の潜在空間近似尤度、
+$Z_\beta$ は正規化定数。$\beta$ を変えると：
 
-### 適応的な β 選択（二分探索）
+| $\beta$ | 分布 | 解釈 |
+|---------|------|------|
+| $0$ | $p(\theta)$ | 事前分布。データを全く反映しない、平坦で広がった分布 |
+| 中間値 | $\propto \hat{L}^\beta p$ | データを部分的に反映。山は浅く、谷は渡りやすい |
+| $1$ | $p(\theta \mid x_{\text{obs}})$ | 事後分布。データを完全に反映、山は鋭い |
 
-目標 ESS（例：$0.8N$）を維持するよう $\beta_t$ を決定：
+### 2.2 地形のイメージ
+
+$\beta$ は「データへの信頼度」のつまみだと思えばよい。$\beta$ を上げると尤度の影響が強まり、
+データが支持する $\theta$ の周辺に「山」が育ち、それ以外の谷が深くなる。
+$\beta$ が低いうちに粒子が空間を広く探検し、$\beta$ が上がるにつれて山に集まっていく
+——これが SMC の動きの本質。
+
+---
+
+## 3. SMC のメインループ：全体像
+
+ここからが本章の核心。02 章 §8.11 で示した擬似コードを、各ステップが「**何を達成して、なぜそれが正しいか**」も含めて再掲する。
+
+```
+[準備]
+  観測 x_obs を固定する
+  尤度 L̂(θ; x_obs) を MVAE から取得（[06 章]）
+
+[初期化]                                          ─ q = β_0 = 0
+  θ^(n) ~ p(θ)  for n = 1..N             ← 事前分布から N 粒子をサンプル
+  log L̂^(n) := log L̂(θ^(n); x_obs) を全粒子について計算
+
+[ループ: k = 0, 1, 2, ... ]
+  ┌──────────────────────────────────────────────────────┐
+  │ Step 1【次の温度を決める】                            │
+  │   Δβ を二分探索で決定                                │
+  │   （重点サンプリング重みの ESS が目標値 0.8N を満たす最大 Δβ）│
+  │   β_{k+1} := β_k + Δβ                                │
+  ├──────────────────────────────────────────────────────┤
+  │ Step 2【重みを計算 → リサンプリング】                 │
+  │   w^(n) ∝ exp(Δβ · log L̂^(n))                       │
+  │   多項分布から N 粒子を重み付き再抽出                 │
+  │   → 重複した粒子の集合になる（多様性は次のステップで回復）│
+  │   重みを 1/N に等しくリセット                         │
+  ├──────────────────────────────────────────────────────┤
+  │ Step 3【MCMC ムーブで多様性を回復】                   │
+  │   各粒子に対して、π_{β_{k+1}} を不変分布とする MH を   │
+  │   mcmc_iter 回適用                                    │
+  │   → 重複していた粒子が独立に少しずつ散らばる          │
+  ├──────────────────────────────────────────────────────┤
+  │ β_{k+1} = 1 になったら終了、そうでなければループ続行  │
+  └──────────────────────────────────────────────────────┘
+
+[出力]
+  最終時点の粒子集合 {θ^(n)} が事後分布 p(θ | x_obs) の近似サンプル
+```
+
+**3 つの操作の役割分担：**
+
+| 操作 | 何を達成する | 何を引き起こす |
+|------|-------------|---------------|
+| **重み付け** | $\pi_{\beta_k} \to \pi_{\beta_{k+1}}$ の橋渡し（情報の重み付け） | 重みの偏り → ESS 低下 |
+| **リサンプリング** | 重みの偏りを「粒子の複製・削除」に変換 | 粒子の重複 → 多様性低下 |
+| **MCMC ムーブ** | 各粒子を $\pi_{\beta_{k+1}}$ に従って動かして多様性回復 | 計算コスト（中間分布の評価 × mcmc_iter） |
+
+3 つは相互補完的：単独ではどれも崩壊するが、組み合わせると相補的に欠点を埋め合う。
+
+以下、それぞれを丁寧に見ていく。
+
+---
+
+## 4. 重み更新：隣接する中間分布間の重点サンプリング
+
+### 4.1 出発点：粒子は今 $\pi_{\beta_k}$ に従っている
+
+ループの $k$ 番目の入口では、前回までの処理で粒子集合 $\{\theta^{(n)}\}$ は近似的に
+$\pi_{\beta_k}$ に従っている（初回は $\pi_0 = p(\theta)$ から直接サンプルしている）。
+ここから $\pi_{\beta_{k+1}}$ に従う粒子集合を作りたい。
+
+この場面は **重点サンプリングそのもの**（[02 章 §6](02_probability.md)）：
+
+- 提案分布 $q = \pi_{\beta_k}$
+- 目的分布 $p = \pi_{\beta_{k+1}}$
+- 各粒子の重み $w^{(n)} \propto \pi_{\beta_{k+1}}(\theta^{(n)}) / \pi_{\beta_k}(\theta^{(n)})$
+
+### 4.2 重みの導出
+
+$\pi_\beta(\theta) = Z_\beta^{-1}\, \hat{L}(\theta)^\beta\, p(\theta)$ を代入して比をとる：
+
+$$
+\frac{\pi_{\beta_{k+1}}(\theta)}{\pi_{\beta_k}(\theta)}
+= \frac{Z_{\beta_{k+1}}^{-1}\, \hat{L}^{\beta_{k+1}}\, p(\theta)}{Z_{\beta_k}^{-1}\, \hat{L}^{\beta_k}\, p(\theta)}
+= \underbrace{\frac{Z_{\beta_k}}{Z_{\beta_{k+1}}}}_{\text{粒子に依存しない定数}} \cdot \hat{L}(\theta)^{\Delta\beta}
+$$
+
+ここで $\Delta\beta = \beta_{k+1} - \beta_k$。事前分布 $p(\theta)$ は分子分母で消え、
+正規化定数の比は **「合計 1 に正規化する」ときに自動的に吸収される**。
+したがって実装で計算するのはシンプルに：
+
+$$\boxed{w^{(n)} \propto \hat{L}(\theta^{(n)})^{\Delta\beta}}$$
+
+### 4.3 対数スケールでの安定化
+
+$\hat{L}^{\Delta\beta}$ は数値的にアンダーフロー/オーバーフローしやすいので、対数で扱う：
+
+$$\log w^{(n)} = \Delta\beta \cdot \log \hat{L}(\theta^{(n)}) + \text{const}$$
+
+正規化前に最大値を引いてから指数化することで安定する（[smc.py:72-82](../src/lsbi_smc/smc/smc.py#L72-L82)）：
 
 ```python
-# smc.py:65-77
+# Particles.eval_weights
+z = self.dq * self.lp                              # log w (定数差は無視可)
+z = torch.nan_to_num(z, neginf=-1e30, posinf=1e30)
+z = z - torch.max(z)                                # 最大を 0 にシフト（exp の安定化）
+w = torch.exp(z)
+w = w / w.sum()                                     # 正規化（定数が消える）
+```
+
+---
+
+## 5. ESS：重みの品質指標と $\Delta\beta$ の決定
+
+### 5.1 ESS の定義
+
+重みが偏ると重点サンプリングは破綻する（[02 章 §6](02_probability.md)）。
+有効サンプルサイズ ESS（Effective Sample Size）はこれを定量化する：
+
+$$\text{ESS}(\Delta\beta) = \frac{\bigl(\sum_n w^{(n)}\bigr)^2}{\sum_n (w^{(n)})^2}$$
+
+正規化された重み（$\sum w = 1$）なら $\text{ESS} = 1 / \sum w^2$。
+
+| ESS | 状態 |
+|-----|------|
+| $N$（最大） | 全粒子が等重み。$\pi_{\beta_k}$ と $\pi_{\beta_{k+1}}$ がほぼ同じ形 |
+| $\sim N/2$ | 半数程度が有効。実用上はまだ許容 |
+| $\sim 1$（最小） | ほぼ 1 粒子に重みが集中。重点サンプリングは破綻している |
+
+### 5.2 なぜ ESS が「有効な粒子数」と呼べるのか
+
+直感的には：$N$ 粒子のうち、有効に期待値計算に寄与しているのは
+「等重みなら何個分の粒子と同じか」を測っている。
+
+簡単な極端ケースでの確認：
+
+- 全粒子が等重み（$w^{(n)} = 1/N$）：$\sum w^2 = N \cdot (1/N)^2 = 1/N$ → $\text{ESS} = N$
+- 1 粒子に集中（$w^{(1)} = 1$、他は 0）：$\sum w^2 = 1$ → $\text{ESS} = 1$
+- $k$ 粒子に均等集中（各 $1/k$、他は 0）：$\sum w^2 = k \cdot (1/k)^2 = 1/k$ → $\text{ESS} = k$
+
+このように ESS は「実質的に効いている粒子数」を表す。
+
+### 5.3 適応的 $\Delta\beta$：二分探索
+
+$\Delta\beta$ を大きくとると一気に進むが ESS が崩れる。
+小さくとると ESS は保てるが温度ステップ数が増える。
+そこで **「ESS がちょうど目標値（例：$0.8N$）になる最大の $\Delta\beta$」を二分探索で見つける**：
+
+```python
+# smc.py:113-132
 def _find_next_q(q_prev, q_tar, lp_np, ess_tar, tol=1e-6, maxit=50):
     lo, hi = q_prev, q_tar
+    # 一気にターゲットまで上げて ESS が十分なら、そのまま採用
     if _ess_from_lp(hi - q_prev, lp_np) >= ess_tar:
-        return hi  # 一気にターゲットまで到達可能
+        return hi
+    # そうでなければ二分探索
     for _ in range(maxit):
         mid = 0.5 * (lo + hi)
         if _ess_from_lp(mid - q_prev, lp_np) < ess_tar:
-            hi = mid
+            hi = mid                # ESS 足りない → Δβ を小さく
         else:
-            lo = mid
+            lo = mid                # ESS 十分 → Δβ をもう少し大きく
         if abs(hi - lo) < tol:
             break
     return 0.5 * (lo + hi)
 ```
 
-**直感**：β を大きくするほど重みが偏る → ESS が下がる。ESS が目標値を下回らないよう β の増分を制限。
+**なぜ二分探索で良いのか：** $\Delta\beta$ を 0 から大きくしていくと、
+$\text{ESS}(\Delta\beta)$ はほぼ単調減少する（重みが指数的に偏っていくため）。
+単調関数の根を探すので二分探索が使える。
 
 ---
 
-## 4. リサンプリング（Resampling）
+## 6. リサンプリング：重みの偏りを粒子集合に反映
 
-重みに従って粒子をリサンプリング（多項サンプリング）：
+### 6.1 重みの偏りを「個数」に変換する
+
+重みを付けた時点では、粒子は同じだが「価値」が違う状態。
+このまま MCMC を回しても、価値の低い粒子に計算コストを使う羽目になる。
+そこで **重みに比例して粒子を再抽出** する。
 
 ```python
-# smc.py:39-45
+# smc.py:84-92
 def resample(self, dq=None):
     self.eval_weights()
     idx = torch.multinomial(self.weights, self.size, replacement=True)
-    self.pop = self.pop[idx]      # 重みが大きい粒子を多く複製
-    self.lp = self.lp[idx]
+    self.pop = self.pop[idx]      # 重み大きい粒子は何度も選ばれる
+    self.lp = self.lp[idx]        # 対応する log-likelihood も付け替え
 ```
 
-**目的**：高重みの粒子を複製、低重みの粒子を削除 → 分布の代表性を維持
+`torch.multinomial(..., replacement=True)` は **多項抽出**：
+各粒子 $n$ が重み $w^{(n)}$ で選ばれ、それを $N$ 回独立に繰り返す。
+結果として：
 
-**問題**：リサンプリングで粒子の多様性が失われる（同じ粒子が複製される）→ MCMC ムーブで解決
+- 重み大の粒子は複数回コピーされる
+- 重み小の粒子は消える
+- 出てきた粒子は全て等重みとみなせる（だから [smc.py:204-210](../src/lsbi_smc/smc/smc.py#L204-L210) でリセット）
+
+### 6.2 リサンプリングが引き起こす副作用
+
+重み付けは数学的に正しいが、リサンプリングを挟むと **粒子の重複** が発生する。
+複製された粒子は完全に同じ $\theta$ 値なので、独立な情報源としての価値は減る
+（多様性の低下）。これを次のステップで MCMC が解消する。
+
+> **注意：**「リサンプリングだけで $\pi_{\beta_{k+1}}$ のサンプルになっているのでは？」と思うかもしれない。確かに重み付け＋リサンプリングは形式的には $\pi_{\beta_{k+1}}$ から引いたことに対応する。だが「同じ $\theta$ の重複が多い集合」と「独立なサンプル」では実用上の有効粒子数が違うので、MCMC で揺らがせて事後分布の表現力を高める。
 
 ---
 
-## 5. MCMC ムーブ（Move Step）
+## 7. MCMC ムーブ：多様性の回復
 
-### 5.1 ランダムウォーク Metropolis-Hastings (RW-MH)
+### 7.1 何のための MCMC か
 
-```python
-# kernel.py:RWMetropolisKernel
-def __call__(self, particles, q, prior, likelihood):
-    # 1. 提案
-    pop_new = self.proposal(particles)
+リサンプリング直後は「同じ $\theta$ が何度も登場する集合」になる。これを MCMC で散らすが、**散らした後も $\pi_{\beta_{k+1}}$ に従っていなければならない**。
+そこで **「$\pi_{\beta_{k+1}}$ を不変分布とする」遷移カーネル** を使う。
 
-    # 2. 採択比の計算
-    log_rat = q * (lp_new - particles.lp) + \
-              prior.lp(pop_new) - prior.lp(particles.pop)
+不変性の意味：$\theta^{(n)} \sim \pi_{\beta_{k+1}}$ から始めて MH を 1 ステップ動かしても、結果はまだ $\pi_{\beta_{k+1}}$ に従う。
+だから、リサンプリングで $\pi_{\beta_{k+1}}$ に従う集合になった後、何ステップ MH を回しても分布は変わらない——粒子の位置だけがバラけていく。
 
-    # 3. 採択/棄却
-    u = torch.rand_like(log_rat)
-    accept = (log_rat > torch.log(u + 1e-12)) & within
-```
+### 7.2 RW-MH カーネル
 
-採択確率：
-$$\alpha = \min\left(1, \frac{\pi_t(\theta^*)}{\pi_t(\theta)}\right) = \min\left(1, \exp\left[\beta_t (\log\hat{L}(\theta^*) - \log\hat{L}(\theta)) + \log p(\theta^*) - \log p(\theta)\right]\right)$$
+各粒子について以下を独立に実行：
 
-### 5.2 Ching & Chen 提案分布
+1. 提案 $\theta^* = \theta + \epsilon$（$\epsilon$ は適応的共分散から引いたガウス、§7.3）
+2. 採択比の計算：
 
-Ching and Chen (2007) の適応的提案分布：
+$$\alpha = \min\!\left(1,\ \exp\bigl[\,\beta_{k+1} (\log \hat{L}(\theta^*) - \log \hat{L}(\theta)) + \log p(\theta^*) - \log p(\theta)\,\bigr]\right)$$
 
-$$\boldsymbol{\Sigma}_t = b^2 \sum_n w_n (\theta^{(n)} - \bar{\theta})(\theta^{(n)} - \bar{\theta})^T$$
+   ここで $\beta_{k+1}$（コード中では `q`）が掛かっている点が普通の MH と違う。
+   これは目標が事後分布 $\pi_1$ ではなく中間分布 $\pi_{\beta_{k+1}}$ だから。
+3. $u \sim \text{Uniform}(0,1)$ を引いて $u < \alpha$ なら採択、さもなければ棄却
+
+実装は [kernel.py:39-48](../src/lsbi_smc/smc/kernel.py#L39-L48)：
 
 ```python
-# proposal.py:ChingAndChenProposal
-def cov_proposal(self, pop, weights):
-    mu = (X * w.unsqueeze(1)).sum(dim=0)     # 重み付き平均
-    Xm = X - mu
-    cov = Xm.t().mm(torch.diag(w)).mm(Xm)   # 重み付き共分散
-    cov = cov * (self.b ** 2)                # スケール調整 (b=0.2)
+log_rat = (
+    q * (lp_new - particles.lp)             # 尤度差 × 温度
+    + prior.lp(pop_new) - prior.lp(particles.pop)  # 事前分布の差
+)
+u = torch.rand_like(log_rat)
+accept = (log_rat > torch.log(u + 1e-12)) & within
 ```
 
-**利点**：現在の粒子分布に適応した提案分布 → 効率的な探索
+`mcmc_iter` 回繰り返すことで、複製されていた粒子同士が徐々に分離していく。
 
-### 5.3 Hamiltonian Monte Carlo (HMC)
+### 7.3 Ching & Chen の適応的提案分布
 
-（`kernel.py` の `HMCKernel` クラス）
+提案幅をどう選ぶかは MH の効率を左右する。固定値は危険：
 
-勾配情報を活用してより効率的な探索：
+- 大きすぎる → ほぼ採択されず動かない
+- 小さすぎる → 動くが遅い
 
-$$H(\theta, p) = U(\theta) + K(p), \quad U(\theta) = -\log \pi_t(\theta), \quad K(p) = \frac{1}{2}p^T M^{-1} p$$
+Ching and Chen (2007) は **現在の粒子集合の重み付き共分散** をスケールして提案共分散にする：
 
-**リープフロッグ積分器**でハミルトン方程式を解く：
+$$\Sigma_{\text{prop}} = b^2 \sum_n w^{(n)} (\theta^{(n)} - \bar{\theta})(\theta^{(n)} - \bar{\theta})^\top, \qquad \bar{\theta} = \sum_n w^{(n)} \theta^{(n)}$$
+
+$b$ はスケール係数（実装では $b = 0.2$）。
 
 ```python
-# kernel.py:67-74（リープフロッグ）
-for _ in range(self.L):
-    th = th.detach().requires_grad_(True)
-    g = torch.autograd.grad(U(th).sum(), th)[0]  # 勾配計算
-    pp = pp - 0.5 * self.eps * g                  # 半ステップの運動量更新
-    th = th + self.eps * (pp / m)                  # 位置更新
-    ...
-    pp = pp - 0.5 * self.eps * g                  # 残り半ステップの運動量更新
+# proposal.py: ChingAndChenProposal.cov_proposal
+mu = (X * w.unsqueeze(1)).sum(dim=0)        # 重み付き平均
+Xm = X - mu
+cov = Xm.t().mm(torch.diag(w)).mm(Xm)       # 重み付き共分散
+cov = cov * (self.b ** 2)                    # スケール調整
 ```
 
-PyTorch の自動微分（`torch.autograd.grad`）でニューラルネットの勾配を計算できる。
+**利点：** 現在の粒子集合が広く散らばっていれば提案も大きく、狭く集中していれば小さくなる。
+事後分布が探索の進行とともに鋭くなる SMC と相性が良い。
+
+### 7.4 HMC カーネル（代替）
+
+[kernel.py:53-125](../src/lsbi_smc/smc/kernel.py#L53-L125) の `HMCKernel` は勾配情報を使う代替案：
+
+- ハミルトニアン $H(\theta, p) = U(\theta) + K(p)$、$U = -\log \pi_{\beta}(\theta)$
+- リープフロッグ積分で位相空間を進める
+- 採択比は $\exp(-\Delta H)$
+
+`torch.autograd.grad` で MVAE エンコーダの勾配を直接計算するため、
+潜在空間尤度の構造を活用できる。本実装では RW-MH を主に使用しているが、
+将来的に高次元化したときの選択肢として用意されている。
 
 ---
 
-## 6. SMC のコア実装
+## 8. 実装との対応
+
+### 8.1 `SMC.run()` の構造
+
+メインループは [smc.py:180-234](../src/lsbi_smc/smc/smc.py#L180-L234)：
 
 ```python
-# smc.py:113-160
 def run(self, ess_tar_ratio=0.8, t_max=100, mcmc_iter=1):
-    ess_tar = ess_tar_ratio * self.pop_size  # 目標ESS = 0.8 × N
+    ess_tar = ess_tar_ratio * self.pop_size  # 目標 ESS = 0.8 × N
 
     while self.q[-1] < self.q_tar and t < t_max:
-        # Step 1: 次の β を決定
+        # ─── Step 1: 次の β を決定 ─────────────────
+        lp_np = self.particles.lp.detach().cpu().numpy()
         q_new = _find_next_q(self.q[-1], self.q_tar, lp_np, ess_tar)
         self.q.append(q_new)
 
-        # Step 2: リサンプリング
-        self.particles.resample(self.q[-1] - self.q[-2])  # Δβ 分だけ重み付け
+        # ─── Step 2: 重み計算 → リサンプリング ─────
+        self.particles.resample(self.q[-1] - self.q[-2])  # Δβ で重み付け
+        self.particles.weights = torch.full(...)          # 重みを 1/N にリセット
 
-        # Step 3: MCMCムーブ（mcmc_iter=10 回繰り返し）
+        # ─── Step 3: MCMC ムーブを mcmc_iter 回 ────
         for _ in range(mcmc_iter):
             pop_new, lp_new, accept = self.kernel(
                 self.particles, self.q[-1], self.prior, self.likelihood
             )
             self.particles.replace(accept, pop_new, lp_new)
+
+        self.pops.append(self.particles.pop.detach())
 ```
+
+### 8.2 モジュールごとの担当
+
+| モジュール | クラス/関数 | 役割 |
+|-----------|-----------|------|
+| [smc.py](../src/lsbi_smc/smc/smc.py) | `SMC` | メインループ |
+| [smc.py](../src/lsbi_smc/smc/smc.py) | `Particles` | 粒子集合・重みの管理 |
+| [smc.py](../src/lsbi_smc/smc/smc.py) | `_find_next_q` | 二分探索で $\Delta\beta$ 決定 |
+| [smc.py](../src/lsbi_smc/smc/smc.py) | `ess` / `_ess_from_lp` | ESS 計算 |
+| [kernel.py](../src/lsbi_smc/smc/kernel.py) | `RWMetropolisKernel` | RW-MH ムーブ |
+| [kernel.py](../src/lsbi_smc/smc/kernel.py) | `HMCKernel` | HMC ムーブ |
+| [proposal.py](../src/lsbi_smc/smc/proposal.py) | `ChingAndChenProposal` | 適応的提案共分散 |
+| [prior.py](../src/lsbi_smc/smc/prior.py) | `HierarchicalPrior` | 事前分布の評価・サンプリング |
+| [variables.py](../src/lsbi_smc/smc/variables.py) | `Normal`, `Uniform`, ... | 個別の確率変数 |
 
 ---
 
-## 7. 事前分布と変数クラス
+## 9. 事前分布と変数クラス
 
-### Uniform 事前分布（直接使用時）
-```python
-# variables.py:Uniform
-θ_i ~ U(a, b)   # 一様分布
-```
+### 9.1 `HierarchicalPrior`
 
-### inference.py での設定
+複数の確率変数を DAG として束ね、結合事前分布として扱う。
+[variables.py](../src/lsbi_smc/smc/variables.py) の各変数クラス（`Normal`, `Uniform`, `HalfNormal`, `Laplace`, `Exponential`）が以下のインタフェースを提供：
+
+- `sample(n)`：$n$ サンプルを引く
+- `lp(values)`：対数事前確率
+- `check_support(values)`：サポート内か（範囲外の提案は MH で自動棄却）
+
+### 9.2 inference.py での実例
+
 ```python
-# 事前分布：標準正規分布（CDF変換と対応）
-variables = [Normal(l, Constant(0.0), Constant(1.0)) for l in k_labels]
+# inference.py:97-98
+variables = [Normal(label, Constant(0.0), Constant(1.0)) for label in k_labels]
 prior = HierarchicalPrior(variables)
 ```
 
-HierarchicalPrior は複数の変数を管理し、以下を提供：
-- `prior.sample(N)`：事前分布からの一括サンプリング
-- `prior.lp(theta)`：対数事前確率
-- `prior.check_support(theta)`：サポート内かどうかの確認
+ここでは **無制約空間** での事前分布として標準正規 $\mathcal{N}(0,1)$ を使っている。
+これは物理空間で見れば $[L,U]$ 上の一様事前分布と等価
+（CDF 変換、[06 章 §6](06_latent_likelihood.md)）。
 
 ---
 
-## 8. 結果の読み方
+## 10. 結果の読み方
+
+最終粒子集合 `smc.pops[-1]` が事後分布のサンプル。
+要約統計は [smc.py:240-254](../src/lsbi_smc/smc/smc.py#L240-L254) の `summary()` で出力される：
 
 ```python
-# smc.py:166-177
 def summary(self):
     pop = self.pops[-1].detach().cpu().numpy()
-    result = pd.DataFrame({
+    return pd.DataFrame({
         'name': self.prior.names,
-        'mean': np.mean(pop, axis=0),     # 事後平均
-        'sd'  : np.std (pop, axis=0),     # 事後標準偏差
-        'q05' : np.percentile(pop,  5, axis=0),  # 5パーセンタイル
-        ...
-        'q95' : np.percentile(pop, 95, axis=0),  # 95パーセンタイル
+        'mean': np.mean(pop, axis=0),                # 事後平均
+        'sd'  : np.std (pop, axis=0),                # 事後標準偏差
+        'q05' : np.percentile(pop,  5, axis=0),      # 5パーセンタイル
+        'q25' : np.percentile(pop, 25, axis=0),
+        'q50' : np.percentile(pop, 50, axis=0),      # 中央値
+        'q75' : np.percentile(pop, 75, axis=0),
+        'q95' : np.percentile(pop, 95, axis=0),      # 95パーセンタイル
     })
 ```
 
-最終的な粒子 `smc.pops[-1]` が事後分布のサンプルになる。
+注意：`pop` は無制約空間 $\theta_{\text{latent}}$ のまま。物理スケールに戻す変換は
+[inference.py:123-125](../src/lsbi_smc/example_shear4dof/inference.py#L123-L125) で行う
+（[06 章 §6.4](06_latent_likelihood.md)）。
 
 ---
 
-## 9. SMC vs NUTS（論文 Table 2 より）
+## 11. SMC vs NUTS（論文 Table 2 より）
 
-| アルゴリズム | 粒子数 Ns | 尤度評価回数 | MMD (低いほど良い) | 計算時間 |
-|------------|----------|------------|-----------------|---------|
-| SMC | 2000 | 362,000 | 0.051 ± 0.019 | **0.8秒** |
-| NUTS | - | 558,871 | 0.629 ± 0.159 | 1782秒 |
+| アルゴリズム | 粒子数 $N_s$ | 尤度評価回数 | MMD（低いほど良い） | 計算時間 |
+|------------|-----------|------------|-----------------|---------|
+| SMC | 2000 | 362,000 | $0.051 \pm 0.019$ | **0.8 秒** |
+| NUTS | -        | 558,871    | $0.629 \pm 0.159$ | 1782 秒 |
 
-**SMC の優位性**：
-1. GPU並列処理で全粒子を同時評価 → 高速
-2. 多峰性の探索に成功（NUTS は局所解に収束）
-3. 計算時間が NUTS の約 2000 倍高速
+**SMC の優位性が出る理由：**
+
+1. **GPU 並列性**：粒子は独立に評価できるので、全 $N$ 粒子を 1 度のフォワードで処理できる
+2. **多峰性への耐性**：温度が低いうちに広く探索しているので、NUTS のような単一連鎖が陥る局所解に居着かない
+3. **適応的 $\Delta\beta$**：必要なステップ数を計算機が自動で決めるので、無駄なイテレーションが少ない
+
+---
+
+## 12. 章のまとめ
+
+SMC は、02 章で紹介した 3 つの要素を **互いの欠点を補い合う形** で組み合わせている：
+
+| 要素 | 単独での弱点 | SMC で補う方法 |
+|------|------------|---------------|
+| 重点サンプリング | 提案と目的が違いすぎると ESS 崩壊 | $\Delta\beta$ を ESS が保てる範囲に制限 |
+| リサンプリング | 粒子が重複し多様性が落ちる | 後続の MCMC ムーブで揺らがせる |
+| MCMC | 単独では多峰性で詰まる | テンパリングで滑らかに進めるので局所解に陥らない |
+
+そして本実装では、これらが [06 章](06_latent_likelihood.md) の **潜在空間尤度** と組み合わさることで、
+推論中にシミュレーターを 1 度も呼ばずに事後分布が得られる、というアーキテクチャになっている。
