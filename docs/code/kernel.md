@@ -146,7 +146,7 @@ accept = (rand() < acc) & within
 
 ## プロトコルインタフェース
 
-`kernel.py` 内で定義されているプロトコル（`smc.py` からインポートして使用）：
+これらのプロトコルは [smc.py:10-45](../../src/lsbi_smc/smc/smc.py#L10-L45) で定義されており、`kernel.py` は `TYPE_CHECKING` ブロックで型ヒント用にインポートしているのみ（[kernel.py:8-9](../../src/lsbi_smc/smc/kernel.py#L8-L9)）。プロトコル定義の本体は次の通り：
 
 ```python
 class LikelihoodProtocol(Protocol):

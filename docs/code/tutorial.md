@@ -377,7 +377,7 @@ uv run python src/lsbi_smc/example_shear4dof/plot_posterior.py
 | 潜在空間で尤度が計算できる理屈がわからない | [06_latent_likelihood.md](../06_latent_likelihood.md) Section 2-3 を再読 |
 | CDF 変換の意味がわからない | [06_latent_likelihood.md](../06_latent_likelihood.md) Section 6、[inference.md](inference.md) を再読 |
 | なぜ RW-MH ではなく SMC を使うのか | [07_smc.md](../07_smc.md) Section 1 を再読 |
-| ESS と β の関係がわからない | [07_smc.md](../07_smc.md) Section 3、[smc.md](smc.md) を再読 |
+| ESS と β の関係がわからない | [07_smc.md](../07_smc.md) Section 5（特に §5.3 二分探索）、[smc.md](smc.md) を再読 |
 | データの形状がよくわからない | [08_code_walkthrough.md](../08_code_walkthrough.md) Section 5 を確認 |
 
 ---

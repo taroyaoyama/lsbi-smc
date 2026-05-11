@@ -51,7 +51,7 @@ Estimate stiffness parameters θ = (k₁…k₄) of a 4-DOF shear building from 
 **Step 2 — MVAE** (`example_shear4dof/mvae.py`)  
 `MVAE` has three networks sharing a single decoder:
 - `Encoder` (enc_x): Conv ResNet, maps FRF `(batch, 1, 1, 1024)` → latent `(batch, z_dim)`
-- `Encoder_w` (enc_w): FC ResNet, maps parameters `(batch, ndof)` → latent `(batch, z_dim)`
+- `EncoderW` (enc_w): FC ResNet, maps parameters `(batch, ndof)` → latent `(batch, z_dim)`
 - `Decoder`: maps latent → reconstructed FRF `(mean, var)`
 
 Loss aligns the two latent spaces via bidirectional KL terms (`KL_x1x2 + KL_x2x1`) plus reconstruction terms. The key design: after training, enc_x and enc_w produce compatible latent representations, enabling cross-modal likelihood evaluation.
@@ -69,7 +69,7 @@ Parameterization: SMC explores in the unconstrained space θ_latent ∈ ℝ (pri
 ### Module dependency
 ```
 inference.py
-  ├── mvae.py          (MVAE, Encoder, Encoder_w, Decoder)
+  ├── mvae.py          (MVAE, Encoder, EncoderW, Decoder)
   ├── latentlik.py     (MVAEBasedLogLikelihood → latent_space_loglik)
   ├── smc.py           (SMC, Particles, _find_next_q)
   ├── kernel.py        (RWMetropolisKernel, HMCKernel)
