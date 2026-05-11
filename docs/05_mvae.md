@@ -37,6 +37,8 @@ class MVAE(nn.Module):
 - `size = 1024`：FRF の周波数点数
 - `nlabel = 4`：構造パラメータの次元数
 
+FRF テンソルの形状 `(batch, ch, depth, size)` の各軸の意味と、なぜ 1 次元データを `Conv2d` で扱うのかについては [03_ml_prerequisites.md §4.4](03_ml_prerequisites.md) を参照。
+
 ---
 
 ## 3. 各エンコーダの詳細

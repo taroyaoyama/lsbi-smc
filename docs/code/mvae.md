@@ -216,6 +216,8 @@ class Encoder(nn.Module):
 
 FRF データ `(batch, ch, depth, size)` を潜在表現 `(batch, z_dim)` に変換。
 
+> 4 軸の意味（なぜ `Conv2d` を使うか、`depth` 軸の役割など）は [03_ml_prerequisites.md §4.4](../03_ml_prerequisites.md) を参照。型エイリアスは [`src/lsbi_smc/shapes.py`](../../src/lsbi_smc/shapes.py) に定義。
+
 ### アーキテクチャ
 
 ```
