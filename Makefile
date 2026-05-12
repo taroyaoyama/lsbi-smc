@@ -20,10 +20,22 @@ figures:
 slides: figures
 	cd docs/presentation && npx -y @marp-team/marp-cli@latest 02_slides.md --pdf --allow-local-files
 
+.PHONY: slides-en
+slides-en: figures
+	cd docs/presentation && npx -y @marp-team/marp-cli@latest 02_slides_en.md --pdf --allow-local-files
+
 .PHONY: slides-pptx
 slides-pptx:
 	cd docs/presentation && npx -y @marp-team/marp-cli@latest 02_slides.md --pptx --allow-local-files
 
+.PHONY: slides-pptx-en
+slides-pptx-en:
+	cd docs/presentation && npx -y @marp-team/marp-cli@latest 02_slides_en.md --pptx --allow-local-files
+
 .PHONY: slides-html
 slides-html:
 	cd docs/presentation && npx -y @marp-team/marp-cli@latest 02_slides.md --html --allow-local-files
+
+.PHONY: slides-html-en
+slides-html-en:
+	cd docs/presentation && npx -y @marp-team/marp-cli@latest 02_slides_en.md --html --allow-local-files

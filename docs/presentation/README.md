@@ -4,14 +4,21 @@
 
 ## ファイル
 
-| ファイル | 内容 |
-|---|---|
-| [01_outline.md](01_outline.md) | 構成案・配分・図表チェックリスト |
-| [02_slides.md](02_slides.md) | Marp 形式のスライドソース |
-| [03_script.md](03_script.md) | 発表スクリプト（読み上げ用） |
-| [04_qa.md](04_qa.md) | 想定問答集 |
-| [assets/make_figures.py](assets/make_figures.py) | スライド用図を matplotlib で生成 |
-| `assets/*.png` | 生成物（gitignore）、`make figures` で再生成 |
+日本語版・英語版の2系統を併設。`_en` サフィックスが英語版。
+
+| ファイル                                 | 内容                                            |
+| ---------------------------------------- | ----------------------------------------------- |
+| [01_outline.md](01_outline.md)           | 構成案・配分・図表チェックリスト（共通プランニング） |
+| [02_slides.md](02_slides.md)             | スライド (日本語、Marp)                         |
+| [02_slides_en.md](02_slides_en.md)       | スライド (英語、Marp)                           |
+| [03_script.md](03_script.md)             | 発表スクリプト (日本語、読み上げ用)             |
+| [03_script_en.md](03_script_en.md)       | 発表スクリプト (英語)                           |
+| [04_qa.md](04_qa.md)                     | 想定問答集 (日本語)                             |
+| [04_qa_en.md](04_qa_en.md)               | 想定問答集 (英語)                               |
+| [assets/make_figures.py](assets/make_figures.py) | スライド用図を matplotlib で生成 (JA + EN) |
+| `assets/*.png`                           | 生成物 (gitignore)、`make figures` で再生成      |
+
+英語版の図は `_en` サフィックス付き (例 `pipeline_en.png`)。日本語スライドは `assets/pipeline.png` を、英語スライドは `assets/pipeline_en.png` を参照する。
 
 ## 図の生成
 
@@ -28,10 +35,15 @@ make figures        # = uv run python docs/presentation/assets/make_figures.py
 Marp CLI が必要です。
 
 ```bash
-# Node 環境がある場合（推奨）
+# 日本語版
 npx @marp-team/marp-cli@latest 02_slides.md --pdf
 npx @marp-team/marp-cli@latest 02_slides.md --pptx
 npx @marp-team/marp-cli@latest 02_slides.md --html
+
+# 英語版
+npx @marp-team/marp-cli@latest 02_slides_en.md --pdf
+npx @marp-team/marp-cli@latest 02_slides_en.md --pptx
+npx @marp-team/marp-cli@latest 02_slides_en.md --html
 
 # Docker を使う場合
 docker run --rm -v $PWD:/home/marp/app marpteam/marp-cli 02_slides.md --pdf
