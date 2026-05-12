@@ -239,7 +239,7 @@ docs/presentation/slides.pptx
 docs/presentation/slides.html
 
 # Presentation figures (regenerable via assets/make_figures.py)
-docs/presentation/assets/*.png
+# docs/presentation/assets/*.png
 
 # paper files
 # papers
