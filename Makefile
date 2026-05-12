@@ -12,8 +12,12 @@ build-no-cache:
 up:
 	docker compose up -d
 
+.PHONY: figures
+figures:
+	uv run python docs/presentation/assets/make_figures.py
+
 .PHONY: slides
-slides:
+slides: figures
 	cd docs/presentation && npx -y @marp-team/marp-cli@latest 02_slides.md --pdf --allow-local-files
 
 .PHONY: slides-pptx

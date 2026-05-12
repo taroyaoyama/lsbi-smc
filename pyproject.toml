@@ -22,6 +22,9 @@ dev = [
     "pyright>=1.1.408",
     "ruff>=0.11",
 ]
+presentation = [
+    "japanize-matplotlib>=1.1.3",
+]
 
 [tool.uv]
 default-groups = ["dev"]

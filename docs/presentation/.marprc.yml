@@ -1,0 +1,13 @@
+# Marp configuration for this presentation.
+# By default Marp strips `style`/`class` attributes from inline HTML,
+# which breaks our two-column flex layouts. Whitelist them here.
+
+html:
+  div:
+    - style
+    - class
+  span:
+    - style
+    - class
+  center: true
+  br: true

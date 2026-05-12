@@ -1,0 +1,9 @@
+{
+  "// Marp HTML allowance": "By default Marp for VS Code strips inline `style`/`class` attributes from <div>/<span>, which breaks the flex/grid layouts used in docs/presentation/02_slides.md. Mirror docs/presentation/.marprc.yml here so the VSCode preview matches the CLI build.",
+  "markdown.marp.html": {
+    "div": ["style", "class"],
+    "span": ["style", "class"],
+    "center": true,
+    "br": true
+  }
+}

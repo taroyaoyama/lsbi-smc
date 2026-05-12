@@ -10,7 +10,18 @@
 | [02_slides.md](02_slides.md) | Marp 形式のスライドソース |
 | [03_script.md](03_script.md) | 発表スクリプト（読み上げ用） |
 | [04_qa.md](04_qa.md) | 想定問答集 |
-| [assets/](assets/) | スライド用画像（自作図） |
+| [assets/make_figures.py](assets/make_figures.py) | スライド用図を matplotlib で生成 |
+| `assets/*.png` | 生成物（gitignore）、`make figures` で再生成 |
+
+## 図の生成
+
+スライドに使う pipeline / VAE比較 / 潜在尤度の3図は Python で生成する:
+
+```bash
+make figures        # = uv run python docs/presentation/assets/make_figures.py
+```
+
+`japanize-matplotlib` が必要（pyproject.toml に追加済み）。
 
 ## スライドのビルド
 
@@ -40,15 +51,17 @@ docker run --rm -v $PWD:/home/marp/app marpteam/marp-cli 02_slides.md --pdf
 
 `assets/` 配下にプレゼン用に作り直した図を配置する（論文用の高密度図はそのまま使わない）。
 
-| ファイル名（予定） | 用途 | 作成元 |
-|---|---|---|
-| `building_fem.png` | Slide 1: 建物 + FEM 模式図 | draw.io / 既存写真 |
-| `pipeline.png` | Slide 3: パイプライン概観 | draw.io（オフライン/オンライン色分け） |
-| `mvae_arch.png` | Slide 4: MVAE 構造 | draw.io（簡略ネットワーク図） |
-| `latent_compare.png` | Slide 5: FRF空間 vs 潜在空間 | matplotlib 2 パネル |
-| `smc_evolution.png` | Slide 6: 粒子の温度遷移 | matplotlib 3 パネル散布図 |
-| `shear4dof_frf.png` | Slide 7: 4DOFモデル + FRF | draw.io + matplotlib |
-| `module_blocks.png` | Slide 9: モジュール構成図 | draw.io（実装済み = 塗り） |
+| ファイル名（予定）       | 用途                                | 作成元                                            |
+| ------------------------ | ----------------------------------- | ------------------------------------------------- |
+| `building_fem.png`       | Slide 1: 建物 + FEM 模式図 + 観測   | draw.io / 既存写真                                |
+| `vae_mvae_compare.png`   | Slide 4: VAE vs MVAE 構造比較       | draw.io（左右2枚並べる）                          |
+| `particles_parallel.png` | Slide 6: 並列粒子のイメージ + 焼きなまし | matplotlib 3パネル散布図 + 並列の概念図          |
+| `shear4dof_frf.png`      | Slide 7: 4DOFモデル + 観測 FRF 例   | draw.io（質点ばねダンパ） + matplotlib            |
+
+スライドでは図のないスライドもあります:
+- Slide 3（全体像）: ASCII アートのパイプライン図で代用（必要なら `pipeline.png` を追加）
+- Slide 5（潜在尤度）: 式変形のみ（必要なら `latent_compare.png` を追加）
+- Slide 9（取り組んだこと）: 表のみ（必要なら `module_blocks.png` を追加）
 
 `../../posterior_plot.png`（既存）は Slide 8 でそのまま参照する。
 プレゼン用に凡例・フォントの整形が必要ならコピーを `assets/` に置く。
@@ -64,3 +77,12 @@ docker run --rm -v $PWD:/home/marp/app marpteam/marp-cli 02_slides.md --pdf
 
 VSCode で `Marp for VS Code` 拡張を入れると、`02_slides.md` のプレビューがエディタ右側で見られる。
 スライド執筆時は VSCode + Marp 拡張、配布時は CLI で書き出す、の運用が楽。
+
+## .marprc.yml について
+
+このディレクトリの `.marprc.yml` は、**`<div style="...">` などの inline style 属性を許可**する設定。
+Marp はセキュリティのためデフォルトで `style`/`class` 属性をサニタイズで剥がしてしまい、
+スライド内の 2 段組（flex レイアウト）が機能しなくなる。`.marprc.yml` で whitelist することで
+flex を含むレイアウトが正しく描画される。
+
+VSCode の Marp 拡張も同ディレクトリの `.marprc.yml` を自動で読むので、特別な設定は不要。

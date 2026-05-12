@@ -5,7 +5,7 @@ paginate: true
 math: mathjax
 size: 16:9
 header: ''
-footer: 'LSBI-SMC | 観測振動データに基づく建物FEモデル更新'
+footer: 'LSBI-SMC | 潜在空間ベイズ + MVAE + SMC のライブラリ実装'
 style: |
   section {
     font-family: "Hiragino Sans", "Yu Gothic", "Noto Sans CJK JP", sans-serif;
@@ -38,16 +38,21 @@ style: |
     color: #888;
     font-size: 14px;
   }
+  img[alt~="center"] {
+    display: block;
+    margin: 0 auto;
+  }
 ---
 
 <!-- _class: title -->
 
-# 観測振動データに基づく建物FEモデル更新
-## — 潜在空間ベイズ推論 + SMC の拡張可能実装 —
+# 潜在空間ベイズ推論 + MVAE + SMC のライブラリ実装
+
+## — 観測振動データに基づく建物FEモデル更新を題材として —
 
 <br>
 
-Yaoyama et al. (2026, NED) のフレームワーク実装と推論基盤のライブラリ化
+Yaoyama et al. (2026, NED) のフレームワーク実装と推論基盤の整備
 
 <br><br>
 
@@ -57,19 +62,25 @@ Yaoyama et al. (2026, NED) のフレームワーク実装と推論基盤のラ�
 
 ---
 
-# 研究背景 — FEモデル更新の必要性
+# 研究背景 — ベイズ推定で何ができるか
 
 - 建物の **地震応答予測** には高精度なFEモデルが前提
-- しかし **設計時FEM ≠ 実建物**
-  - 経年劣化、施工誤差、非構造部材の寄与 …
-- **FE モデル更新 (model updating)**: 観測振動データから剛性等のパラメータ $\theta$ を逆推定
-- 決定論的 fitting では不十分 → **不確かさを定量化するベイズ推定**が必要
+- しかし **設計時FEM ≠ 実建物**（経年劣化、施工誤差、非構造部材 …）
+- 観測振動データ $x_\mathrm{obs}$ から、剛性パラメータ $\theta$ を **ベイズ更新**したい
+
+**ベイズの定理**:
+
+$$
+p(\theta \mid x_\mathrm{obs}) \;\propto\; \underbrace{L(\theta;\, x_\mathrm{obs})}_{\text{尤度}} \; \cdot \; \underbrace{p(\theta)}_{\text{事前}}
+$$
+
+→ **尤度 $L$ が評価できれば、事後分布が（MCMC等で）推定可能**
+
+しかし、本問題では尤度 $L$ の評価そのものが難しい — これが課題（次スライド）
 
 <!--
-SPEAKER: 5分の最初の50秒で「なぜこの研究をやるのか」を伝える。設計FEMと実建物のギャップ＝聴衆も日常的に感じている問題、と置いて入る。
+SPEAKER: 50秒。ベイズの式を中心に置いて「尤度さえあれば事後が出る」とまず言い切る。式が課題の入口になる。
 -->
-
-![bg right:35% w:90%](assets/building_fem.png)
 
 ---
 
@@ -77,7 +88,7 @@ SPEAKER: 5分の最初の50秒で「なぜこの研究をやるのか」を伝�
 
 **目的**: 観測FRF $x_\mathrm{obs}$ から、剛性パラメータ $\theta$ の **事後分布** $p(\theta \mid x_\mathrm{obs})$ を効率的に推定する
 
-<br>
+**ベンチマーク（後述）**: 論文と同一の 4自由度せん断建物モデル — 真値 $\theta = (1,1,1,1)$ を屋上FRF から回収できるか
 
 **3つの課題**:
 
@@ -88,171 +99,155 @@ SPEAKER: 5分の最初の50秒で「なぜこの研究をやるのか」を伝�
 | ③   | **多峰性**               | 同じ屋根応答を再現する $\theta$ が複数存在（等価解）                   |
 
 <!--
-SPEAKER: 課題を3つに整理。①と②は計算機資源の話、③は構造系の方には実感がある「同じ応答を出す異なる剛性配分」の話、と分けて伝える。
+SPEAKER: 25秒。ベンチマークの存在を一言ふれておくと、後で唐突感が消える。
 -->
 
 ---
 
-# 提案手法（既存）— 全体像
+# 提案手法 — 全体像
 
-**オフライン学習 + オンライン推論** の2段構え
+**オフライン**: MVAE が尤度を低次元の $\hat{L}$ に置き換える（ML担当）／ **オンライン**: SMC が $\hat{L}$ のみで事後を推定（FE 不要）
 
-```
-[オフライン]                              [オンライン]
-
-事前分布 ─→ FE解析 ─→ (θ, FRF)
-                          │
-                          ▼
-                       MVAE 学習
-                          │
-                          ▼
-                     潜在空間 z      ←── 観測 x_obs
-                          │                 │
-                          └────→ SMC ←──────┘
-                                  │
-                                  ▼
-                       事後分布 p(θ | x_obs)
-```
-
-1. データセット生成（FE並列実行）
-2. **MVAE 学習** — $\theta$ と FRF を共通の潜在空間 $z$ に写す
-3. **SMC 推論** — 潜在空間で尤度を計算してサンプリング
+![w:950 center](assets/pipeline.png)
 
 <!--
-SPEAKER: ここから手法パート120秒。まず全体像で「2段構え」をひとことで掴ませる。詳細は次の3枚。
+SPEAKER: 30秒。「機械学習はオフラインで尤度を作る部分。推論はSMC」と分けて伝える。FEを呼ばないという点を強調。
 -->
 
 ---
 
-# Step 2: MVAE — 2つのエンコーダを揃える
+# Step 2: MVAE — 通常 VAE との比較
 
-「$\theta$ も FRF $x$ も、**同じ潜在変数 $z$** から生成される」よう学習
+![w:1100 center](assets/vae_mvae_compare.png)
 
-- パラメータ用エンコーダ $\mathrm{enc}_w(\theta) \to (\mu_w, \sigma^2_w)$
-- FRF 用エンコーダ $\mathrm{enc}_x(x) \to (\mu_x, \sigma^2_x)$
-- 共通デコーダ $\mathrm{dec}(z) \to \hat{x}$
-
-**損失**: 再構成項 + **2方向KL** $\mathrm{KL}(q_w \,\|\, q_x) + \mathrm{KL}(q_x \,\|\, q_w)$
-
-→ 2つのエンコーダが**同じ $z$ 表現**を返すように揃う
-
-<br>
-
-> **VAE とは**: データを低次元の潜在変数 $z$ に圧縮し、そこから復元できるよう学習する深層学習手法。
-
-![bg right:33% w:95%](assets/mvae_arch.png)
+- VAE: 入力 $x$ のみ・エンコーダ1個 / MVAE: $(\theta, x)$ ペア・エンコーダ2個・**KL で揃える**
+- 学習後、$\theta$ と $x_\mathrm{obs}$ を **同じ潜在空間で比較可能** に
 
 <!--
-SPEAKER: ML弱め聴衆向け。図でenc_w / enc_x / decの3つのネットワークが見えればOK。引用ボックスでVAEの一言定義。
+SPEAKER: 40秒。図の左右を順に指す。「入力」「エンコーダ数」「損失のKL項の中身」が違うと伝える。
 -->
 
 ---
 
-# Step 3a: 潜在空間ベース尤度
+# Step 3a: 潜在空間ベース尤度 — 式変形
 
-1024次元のFRFを直接比較せず、**低次元の潜在空間で尤度を評価**
+![bg right:38% w:95%](assets/latent_overlap.png)
 
-- 観測 $x_\mathrm{obs}$ を**1度だけ** $\mathrm{enc}_x$ で潜在化 → $(\mu_\mathrm{obs}, \sigma^2_\mathrm{obs})$
-- 候補 $\theta$ を $\mathrm{enc}_w$ で潜在化 → $(\mu_w, \sigma^2_w)$
-- 潜在事前 $\mathcal{N}(0, I)$ 上で **解析的に積分** → 閉形式
+真の尤度（直接評価困難）:
+
+$$L(\theta;\, x_\mathrm{obs}) = \int p(x_\mathrm{obs}\mid z)\, p(z\mid \theta)\, dz$$
+
+MVAE 近似（2エンコーダ + 潜在事前 $p(z)$）:
+
+$$\hat{L}(\theta;\, x_\mathrm{obs}) = \int \frac{q_{\phi_x}(z\mid x_\mathrm{obs})\, q_{\phi_\theta}(z\mid \theta)}{p(z)}\, dz$$
+
+すべて **ガウス** → **完全平方完成で閉形式**
+→ **エンコーダ通過のみで尤度評価**、FE 解析不要
+
+<!--
+SPEAKER: 35秒。式変形3段。右の図で「2つのガウスの重なり=尤度」を視覚的に。
+-->
+
+---
+
+# Step 3b: SMC — 焼きなまし + 重み + MCMC
+
+**焼きなまし**: $\beta_t \in [0,1]$ を段階的に上げ、中間分布を経由
 
 $$
-\log p(x_\mathrm{obs}\mid\theta) \approx \log \int \mathcal{N}(z;\mu_\mathrm{obs},\sigma^2_\mathrm{obs})\, \mathcal{N}(z;\mu_w,\sigma^2_w)\, \mathcal{N}(z;0,I)\, dz
+p_t(\theta) = c^{-1}\, \hat{L}(\theta;\,x_\mathrm{obs})^{\beta_t - \beta_{t-1}}\, p_{t-1}(\theta), \quad
+w^{(n)}_t(\beta) = \hat{L}\bigl(\theta_{t-1}^{(n)};\,x_\mathrm{obs}\bigr)^{\beta-\beta_{t-1}}
 $$
 
-→ **SMC ループ内で FE シミュレータを呼ばなくて済む**（最大のセールスポイント）
+→ 次の温度 $\beta_t$ は ESS が $\gamma N$ を保つよう **二分探索**、リサンプリング
+
+**MCMC ムーブ**: ガウス遷移カーネル $K(\theta, \cdot) = \mathcal{N}\!\left(\cdot \mid \theta,\, \Sigma_t\right)$、共分散は Ching & Chen (2007)
+
+$$
+\Sigma_t = \frac{b^2}{S_t}\sum_{n} w_t^{(n)}(\theta_t^{(n)}-\bar\theta_t)(\theta_t^{(n)}-\bar\theta_t)^\top, \qquad \eta = \min\!\left\{1,\; \frac{p_t(\theta^*)}{p_t(\theta)}\right\}
+$$
+
+粒子は独立に進化 → **GPU で自然に並列化**、焼きなましで **多峰性に強い**
 
 <!--
-SPEAKER: ここが本手法の "効く" 理由。「FEを毎回呼ばずに尤度が出る」と1文で結ぶ。
--->
-
-![bg right:30% w:95%](assets/latent_compare.png)
-
----
-
-# Step 3b: SMC — 焼きなまし型サンプリング
-
-逆温度 $q$ を $0$（事前）→ $1$（事後）まで**段階的に上げる**
-
-各ステップで:
-1. 重みづけ（尤度の $\Delta q$ 乗で更新）
-2. **リサンプリング**
-3. MCMC kernel（RW-Metropolis）で多様化
-
-特徴:
-- $q$ の刻みは **ESS（実効サンプル数）** に基づき適応決定
-- 粒子は独立に進化 → **自然に並列化可能**
-- 焼きなましのおかげで **多峰性（等価解）に強い**
-
-![bg right:35% w:95%](assets/smc_evolution.png)
-
-<!--
-SPEAKER: 多峰性に強いという点を強調。構造系聴衆の関心とつながる。
+SPEAKER: 35秒。焼きなまし+重み・遷移カーネル+共分散・採択 の3塊で説明。
 -->
 
 ---
 
 # ベンチマーク — 4自由度せん断建物
 
-**設定**（論文と同じ）:
+**条件設定** (論文と同一):
 
-- 4層せん断モデル、各層剛性 $k_i \in [0.33, 3.00]$（正規化）
-- 観測: 屋根のFRF（1024点、ホワイトノイズ励振、付加ノイズあり）
-- 真値: $(k_1, k_2, k_3, k_4) = (1.0, 1.0, 1.0, 1.0)$
-- 訓練データ: 事前から $N$ サンプル → FE並列実行
-- SMC: 粒子数 $N_p$, MCMC step数 $N_m$
+- せん断型 4 自由度モデル: **各層は水平 1 方向のみに変位**（質点ばねダンパ）
+- 各層質量は等しく $m$、剛性 $k_i = \theta_i k$ （$\theta_i \in [0.33, 3.00]$）
+- 減衰: Rayleigh（1 Hz と 30 Hz で減衰比 0.02）
+- 観測: **基部加振 + 屋上 FRF のみ**、1024 点、ノイズ付加
+- 真値: $\theta = (1,1,1,1)$、事前分布は一様 $\mathcal{U}([0.33, 3.00])$
 
-![bg right:45% w:90%](assets/shear4dof_frf.png)
+**運動方程式**:
+
+$$
+M \ddot{\mathbf{u}} \;+\; C(\theta) \dot{\mathbf{u}} \;+\; K(\theta)\, \mathbf{u} \;=\; -M\,\boldsymbol{\iota}\, \ddot{u}_g
+\qquad (\mathbf{u}\in\mathbb{R}^4: \text{各層の水平変位})
+$$
+
+→ 周波数領域に持ち込み、屋上絶対加速度の $\log|H(f)|$ を観測量とする
 
 <!--
-SPEAKER: 設定をテンポよく。図で4階建てモデルと観測FRF例を見せる。
+SPEAKER: 25秒。質量等しい / Rayleigh減衰 / 屋上FRFのみ、と条件を3点で言い切る。
 -->
 
 ---
 
-# 結果 — 事後分布のコーナープロット
+# 結果 — 事後分布と計算速度
 
-![bg right:55% w:95%](../../posterior_plot.png)
+![bg right:42% w:95%](../../posterior_plot.png)
 
-- メインモード: $k\approx(1,1,1,1)$ 付近に集中（真値を回収）
-- 等価解 A/B/C も**別モード**として再現
-- $k_4$（屋根層）は強く拘束、$k_1$ も well-identified、$k_2, k_3$ はやや広がる
+事後分布:
+- 真値 $(1,1,1,1)$ にメインモード集中
+- 等価解 A/B/C も別モード再現
 
-→ 論文で報告されている挙動を**実装上でも再現**
+計算速度 (論文 表2):
+
+|                          | 実時間    | MMD       |
+| ------------------------ | --------- | --------- |
+| **SMC** ($N_s\!=\!2000$) | **0.8 s** | **0.051** |
+| NUTS                     | 1782 s    | 0.629     |
+
+→ **約 2200 倍** 高速化、MMD も SMC 優位
 
 <!--
-SPEAKER: 結果をひと言で。「真値に当たった」「等価解も拾えた」の2点に絞る。
+SPEAKER: 25秒。「真値回収」「等価解再現」「桁違いの高速化」の3点。
 -->
 
 ---
 
-# 本研究の貢献 — 拡張しやすい形での再実装
+# 自分が取り組んだこと — 拡張しやすい再実装
 
-手法そのものは既存。本研究は **現方式のまま、後から差し替えやすい構造に再実装**
+手法そのものは既存（Yaoyama et al. 2026）。**自分は、そのフレームワークを後から拡張・差し替えしやすい構造で再実装した。**
 
-| モジュール   | 現在の中身              | 設計上の拡張余地（未実装） |
-| ------------ | ----------------------- | -------------------------- |
-| サンプラー   | SMC                     | HMC, NUTS, Nested Sampling |
-| MCMCカーネル | RW-Metropolis           | MALA, HMC など             |
-| 提案分布     | Ching & Chen (2007)     | 適応的MH, 学習ベース       |
-| 尤度モデル   | MVAE 潜在尤度           | 標準VAE, NF, 直接尤度      |
-| 事前分布     | HierarchicalPrior (DAG) | 任意の確率変数の組み合わせ |
+| モジュール   | 現在の中身              | 抽出した Protocol（差し替え可能）    |
+| ------------ | ----------------------- | ------------------------------------ |
+| サンプラー   | SMC                     | `class SMC` → HMC/NUTS/NS            |
+| MCMCカーネル | RW-Metropolis           | `KernelProtocol` → MALA/HMC          |
+| 提案分布     | Ching & Chen (2007)     | `ProposalProtocol` → 適応MH 等       |
+| 尤度モデル   | MVAE 潜在尤度           | `LikelihoodProtocol` → 標準VAE/NF 等 |
+| 事前分布     | HierarchicalPrior (DAG) | `PriorProtocol` → 任意の確率変数     |
 
-**再実装上の整備**: 数値安定化 / 並列化整理 / 事前分布の DAG 宣言
-
-> 代替手法そのものは未実装 — **今後の比較研究のための土台**を作った段階
+**それ以外の改善**: モジュール依存関係の整理 / uv 管理とパッケージ公開 / ドキュメント整備
 
 <!--
-SPEAKER: ここが自分の貢献。背伸びせず「土台を作った」と正直に。
+SPEAKER: 40秒。「自分が」を明示。Protocol表 + その他改善 を端的に伝える。
 -->
 
 ---
 
 # まとめ・今後の展望
 
-**やったこと**:
-- LSBI-SMC（既存手法）を PyTorch で再実装、4DOFベンチマークで動作確認
-- 各構成要素を後から差し替え可能なモジュール構成に整理
+**自分が取り組んだこと**:
+- LSBI-SMC を PyTorch で **拡張可能な形に再実装**、4DOFベンチマークで動作確認
+- 各構成要素を **Protocol ベースで切り出し**、後から差し替え可能に整理
 
 **今後の展望（ライブラリ拡張）**:
 - 他サンプラー（NUTS / Nested Sampling）との比較実験
@@ -270,5 +265,5 @@ SPEAKER: ここが自分の貢献。背伸びせず「土台を作った」と�
 </center>
 
 <!--
-SPEAKER: 最後の30秒。やったこと2点 + 今後5点をテンポよく。
+SPEAKER: 30秒。やったこと2点、今後5点。
 -->
