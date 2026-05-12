@@ -227,6 +227,11 @@ posterior.mat
 # Plots
 posterior_plot.png
 
+# Presentation build artifacts (source .md is committed, builds are not)
+docs/presentation/slides.pdf
+docs/presentation/slides.pptx
+docs/presentation/slides.html
+
 # paper files
 # papers
 # docs
