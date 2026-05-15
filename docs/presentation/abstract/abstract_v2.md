@@ -35,6 +35,6 @@ $$
 
 ## 参考文献
 
-1) Yaoyama, T. et al., Finite element model updating of building structures under seismic excitation: A parallelized latent space-based Bayesian framework, *Nucl. Eng. Des.* (2026).
+1) Yaoyama, T. et al., Finite element model updating of building structures under seismic excitation: A parallelized latent space-based Bayesian framework, arXiv:2604.22305 (preprint, 2026).
 2) Itoi, T. et al., Bayesian structural model updating with multimodal variational autoencoder, *Comput. Methods Appl. Mech. Eng.* **429**, 117148 (2024).
 3) Ching, J., Chen, Y.-C., Transitional Markov chain Monte Carlo method for Bayesian model updating, model class selection, and model averaging, *J. Eng. Mech.* **133**(7), 816-832 (2007).

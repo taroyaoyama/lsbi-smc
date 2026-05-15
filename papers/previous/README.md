@@ -110,7 +110,7 @@
 
 [^12]: Lee, S., Yaoyama, T., Kitahara, M., Itoi, T., "Latent space-based stochastic model updating", *Mech. Syst. Signal Process.* 235 (2025) 112841.
 
-[^13]: Yaoyama, T., Lee, S., Matsubara, M., Kodera, K., Ugata, T., Itoi, T., "Finite element model updating of building structures under seismic excitation: A parallelized latent space-based Bayesian framework", *Nucl. Eng. Des.* (2026). **← 本研究の対象論文**
+[^13]: Yaoyama, T., Lee, S., Matsubara, M., Kodera, K., Ugata, T., Itoi, T., "Finite element model updating of building structures under seismic excitation: A parallelized latent space-based Bayesian framework", arXiv:2604.22305 (preprint, 2026). **← 本研究の対象論文**
 
 [^14]: Ching, J., Chen, Y.-C., "Transitional Markov chain Monte Carlo method for Bayesian model updating, model class selection, and model averaging", *J. Eng. Mech.* 133 (2007) 816–832.
 
