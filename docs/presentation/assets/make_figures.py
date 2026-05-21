@@ -55,6 +55,10 @@ class L10n:
     latent_obs: str
     latent_theta: str
     latent_prior: str
+    mvae_io_title: str
+    mvae_io_enc_x: str
+    mvae_io_enc_th: str
+    mvae_io_dec: str
 
 
 JA = L10n(
@@ -87,6 +91,10 @@ JA = L10n(
     latent_obs="観測 $q_{\\phi_x}$",
     latent_theta="$\\theta$ 候補 $q_{\\phi_\\theta}$",
     latent_prior="$p(z)\\!=\\!\\mathcal{N}(0,I)$\n(破線, 潜在事前)",
+    mvae_io_title="MVAE: 2 つのエンコーダ + 1 つのデコーダの入出力",
+    mvae_io_enc_x="観測側エンコーダ $q_{\\phi_x}(z\\,|\\,x)$",
+    mvae_io_enc_th="パラメータ側エンコーダ $q_{\\phi_\\theta}(z\\,|\\,\\theta)$",
+    mvae_io_dec="デコーダ $p_\\eta(x\\,|\\,z)$",
 )
 
 EN = L10n(
@@ -119,6 +127,10 @@ EN = L10n(
     latent_obs="Obs. $q_{\\phi_x}$",
     latent_theta=r"$\theta$ cand. $q_{\phi_\theta}$",
     latent_prior="$p(z)\\!=\\!\\mathcal{N}(0,I)$\n(dashed, latent prior)",
+    mvae_io_title="MVAE: I/O of the two encoders and one decoder",
+    mvae_io_enc_x="Observation encoder $q_{\\phi_x}(z\\,|\\,x)$",
+    mvae_io_enc_th="Parameter encoder $q_{\\phi_\\theta}(z\\,|\\,\\theta)$",
+    mvae_io_dec="Decoder $p_\\eta(x\\,|\\,z)$",
 )
 
 
@@ -347,11 +359,60 @@ def make_latent_overlap(loc: L10n):
     plt.close(fig)
 
 
+# ---------- figure 4: MVAE I/O ----------
+
+
+def make_mvae_io(loc: L10n):
+    fig, ax = plt.subplots(figsize=(12, 4.3))
+    ax.set_xlim(0, 12)
+    ax.set_ylim(0, 4.3)
+    ax.axis("off")
+
+    ax.text(
+        6.0, 3.95, loc.mvae_io_title,
+        ha="center", fontsize=15, color="#1a3a5c", fontweight="bold",
+    )
+
+    rows = [
+        # (y, input_label, input_color, net_label, net_fc, net_ec, output_label)
+        (
+            2.85,
+            "$x$", ("#fbe6e1", "#c0392b"),
+            loc.mvae_io_enc_x, "#fbe6e1", "#c0392b",
+            "$(\\mu_x,\\, \\sigma_x^2)$",
+        ),
+        (
+            1.75,
+            "$\\theta$", ("#e1f0e7", "#2c8a4f"),
+            loc.mvae_io_enc_th, "#e1f0e7", "#2c8a4f",
+            "$(\\mu_\\theta,\\, \\sigma_\\theta^2)$",
+        ),
+        (
+            0.6,
+            "$z$", ("#fff7d6", "#b9871a"),
+            loc.mvae_io_dec, "#eef3f8", "#1a3a5c",
+            "$(\\hat\\mu_x,\\, \\hat\\sigma_x^2)$",
+        ),
+    ]
+
+    for y, in_lbl, in_col, net_lbl, net_fc, net_ec, out_lbl in rows:
+        _box(ax, (1.0, y), 1.2, 0.8, in_lbl, fc=in_col[0], ec=in_col[1], fontsize=15)
+        _box(ax, (5.5, y), 4.2, 0.95, net_lbl, fc=net_fc, ec=net_ec, fontsize=13)
+        _box(ax, (10.4, y), 2.4, 0.95, out_lbl,
+             fc="#fff7d6", ec="#b9871a", fontsize=13)
+        _arrow(ax, (1.65, y), (3.35, y))
+        _arrow(ax, (7.65, y), (9.15, y))
+
+    fig.savefig(ASSETS / f"mvae_io{loc.suffix}.png")
+    plt.close(fig)
+
+
 if __name__ == "__main__":
     for loc in (JA, EN):
         make_pipeline(loc)
         make_vae_mvae_compare(loc)
         make_latent_overlap(loc)
+        make_mvae_io(loc)
     print("Generated:")
     for p in sorted(ASSETS.glob("*.png")):
         print(f"  - {p.relative_to(ASSETS.parent.parent.parent)}")

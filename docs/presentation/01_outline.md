@@ -27,7 +27,7 @@
 | 2  | 本研究の目的 — フレームワーク構築             | 25s   |
 | 3  | 潜在空間ベイズ推論 — 定式化                   | 50s   |
 | 4  | 全体像 — オフライン/オンライン                | 30s   |
-| 5  | MVAE 学習 — エンコーダが近似尤度を担う        | 30s   |
+| 5  | Multimodal Variational Autoencoder (MVAE) の学習 | 30s |
 | 6  | フレームワーク実装① 概念的役割への分離       | 30s   |
 | 7  | フレームワーク実装② Protocol によるインターフェース | 30s |
 | 8  | 検証 — 4自由度せん断建物                      | 20s   |
@@ -72,7 +72,7 @@
 - 観測側エンコーダ $q_{\phi_x}$、パラメータ側エンコーダ $q_{\phi_\theta}$、潜在事前 $p(z)=\mathcal{N}(0,I)$ を全てガウスとして構成
 - → 式 (2) が閉形式で評価可能
 
-→ 図: なし（式 (1)(2) と説明のみ。図は Slide 5 に移動して overflow を解消）
+→ 図: 潜在空間における 2 分布の整列イメージ [assets/latent_overlap.png](assets/latent_overlap.png)（Slide 9 と同様に `bg right:38% w:95%` で右半分に背景配置、テキスト+式 (1)(2) は左側に自然に流す）
 
 ---
 
@@ -84,14 +84,14 @@
 
 ---
 
-### Slide 5: MVAE 学習 — エンコーダが近似尤度を担う ★新規
-- MVAE は 2 つのエンコーダ + 共有デコーダ
-- $q_{\phi_x}(z \mid x)$、$q_{\phi_\theta}(z \mid \theta)$
+### Slide 5: Multimodal Variational Autoencoder (MVAE) の学習 ★新規
+- MVAE は 2 つのエンコーダ + 1 つのデコーダからなる確率モデル
+- 観測側エンコーダ $q_{\phi_x}(z \mid x)$、パラメータ側エンコーダ $q_{\phi_\theta}(z \mid \theta)$、デコーダ $p_\eta(x \mid z)$
 - 双方向 KL + 再構成損失で学習 → 2 エンコーダ出力が同じ潜在空間で対応するよう整列
 - 学習後: 学習済みエンコーダ $q_{\phi_x}, q_{\phi_\theta}$ が **そのまま式 (2) の被積分関数として近似尤度 $\hat{L}$ に投入される**
 - SMC 中は **パラメータ側エンコーダの順伝播だけで尤度評価**
 
-→ 図: [assets/latent_overlap.png](assets/latent_overlap.png)（潜在空間での 2 分布の整列、右側カラムに配置）
+→ 図: 2 エンコーダ + 1 デコーダの入出力 [assets/mvae_io.png](assets/mvae_io.png)（中央に w:880 で配置）
 
 ---
 
@@ -148,8 +148,9 @@
 
 | 図                       | スライド | 出典                                                |
 |--------------------------|----------|-----------------------------------------------------|
+| 潜在空間の 2 分布整列    | Slide 3  | [assets/latent_overlap.png](assets/latent_overlap.png) |
 | パイプライン             | Slide 4  | [assets/pipeline.png](assets/pipeline.png)          |
-| 潜在空間の 2 分布整列    | Slide 5  | [assets/latent_overlap.png](assets/latent_overlap.png) |
+| MVAE 入出力（2 エンコーダ + 1 デコーダ） | Slide 5 | [assets/mvae_io.png](assets/mvae_io.png) |
 | Protocol コード抜粋      | Slide 7  | スライド内コードブロック                            |
 | 事後分布散布図           | Slide 9  | [../../posterior_plot.png](../../posterior_plot.png) |
 
@@ -158,12 +159,12 @@
 
 ---
 
-## レイアウト調整（v3 → v4 で行ったこと）
+## レイアウト調整
 
 - セクション全体の `font-size` を 26px → 24px、`padding` を 50/60px → 40/56px に圧縮
-- Slide 3（LSBI 定式化）から図を撤去し、テキスト+数式のみに（overflow 解消）
+- Slide 3（LSBI 定式化）は Slide 9 と同じ `bg right` パターンで右側に潜在空間図を背景配置、左に式 (1)(2) とテキストを自然に流す
 - Slide 4（全体像）の pipeline.png を w:1050 → w:980 に縮小
-- Slide 5（MVAE 学習）は flex レイアウトで左テキスト・右図に分離
+- Slide 5（MVAE 学習）は 2 エンコーダ + 1 デコーダの I/O を示す新図 mvae_io.png を中央配置
 
 ---
 

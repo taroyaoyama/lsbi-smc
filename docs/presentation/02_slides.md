@@ -115,15 +115,15 @@ SPEAKER: 25秒。「シミュレータの壁」「既存実装が固定」「差
 
 # 3. 潜在空間ベイズ推論 — 定式化
 
+![bg right:38% w:95%](assets/latent_overlap.png)
+
 ベイズの定理より:
 
 $$
 p(\theta \mid x_\mathrm{obs}) \;\propto\; L(\theta;\, x_\mathrm{obs})\, p(\theta) \tag{1}
 $$
 
-**低次元潜在変数 $z$ を介して尤度を近似** する。
-
-観測側エンコーダ $q_{\phi_x}(z \mid x_\mathrm{obs})$、パラメータ側エンコーダ $q_{\phi_\theta}(z \mid \theta)$、潜在事前 $p(z) = \mathcal{N}(0, I)$ を **全てガウス** として構成すれば、
+**低次元潜在変数 $z$ を介して尤度を近似** する。観測側エンコーダ $q_{\phi_x}(z \mid x_\mathrm{obs})$、パラメータ側エンコーダ $q_{\phi_\theta}(z \mid \theta)$、潜在事前 $p(z) = \mathcal{N}(0, I)$ を **全てガウス** として構成すれば、
 
 $$
 \hat{L}(\theta;\, x_\mathrm{obs}) \;=\; \int \frac{q_{\phi_x}(z \mid x_\mathrm{obs})\, q_{\phi_\theta}(z \mid \theta)}{p(z)}\, dz \tag{2}
@@ -132,7 +132,7 @@ $$
 は **閉形式で評価可能** となる。
 
 <!--
-SPEAKER: 50秒。(1) → 低次元潜在を介して尤度を近似 → ガウスにすれば閉形式、と式 (1)(2) を指で追う。
+SPEAKER: 50秒。(1) → 低次元潜在を介して尤度を近似 → ガウスにすれば(2)が閉形式、と式を順に指で追う。右図は2つのエンコーダ分布が潜在空間で重なるイメージ。
 -->
 
 ---
@@ -150,37 +150,18 @@ SPEAKER: 30秒。図でオフライン (MVAE学習) → オンライン (SMC) �
 
 ---
 
-# 5. MVAE 学習 — エンコーダが近似尤度を担う
+# 5. Multimodal Variational Autoencoder (MVAE) の学習
 
-<div style="display: flex; gap: 28px; align-items: center;">
-<div style="flex: 1.05;">
+**MVAE = 2 つのエンコーダ + 1 つのデコーダ** からなる確率モデル
 
-**MVAE = 2 つのエンコーダ + 共有デコーダ**
+![w:880 center](assets/mvae_io.png)
 
-- $q_{\phi_x}(z \mid x)$: 観測 → 潜在
-- $q_{\phi_\theta}(z \mid \theta)$: パラメータ → 潜在
-- 双方向 KL + 再構成損失 で学習
-
-→ 2 つのエンコーダ出力が **同じ潜在空間** で対応するように整列される
-
-</div>
-<div style="flex: 0.95;">
-
-![w:430 center](assets/latent_overlap.png)
-
-</div>
-</div>
-
-**学習後の使い道**: 学習済みエンコーダ $q_{\phi_x}, q_{\phi_\theta}$ が、そのまま **式 (2) の被積分関数として近似尤度 $\hat{L}$ の計算に投入される**
-
-$$
-\hat{L}(\theta;\, x_\mathrm{obs}) = \int \frac{q_{\phi_x}(z \mid x_\mathrm{obs})\, q_{\phi_\theta}(z \mid \theta)}{p(z)}\, dz
-$$
-
-→ 観測を一度エンコードしておけば、SMC 中は **パラメータ側エンコーダの順伝播** だけで尤度評価が完了
+- **学習**: 双方向 KL + 再構成損失 → 2 エンコーダ出力が **同じ潜在空間** で対応するよう整列
+- **学習後の使い道**: 学習済みエンコーダ $q_{\phi_x}, q_{\phi_\theta}$ が、そのまま **式 (2) の被積分関数として近似尤度 $\hat{L}$ の計算に投入される**
+- 観測を一度エンコードしておけば、SMC 中は **パラメータ側エンコーダの順伝播** だけで尤度評価が完了
 
 <!--
-SPEAKER: 30秒。2エンコーダ → 同じ潜在空間で対応 → 学習済みエンコーダが式(2)に入る、という橋渡しを明確に。
+SPEAKER: 30秒。図で2エンコーダ+1デコーダの入出力を示し、「学習後に2つのエンコーダがそのまま式(2)に入る」という橋渡しを明確に。
 -->
 
 ---
