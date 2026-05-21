@@ -91,7 +91,7 @@
 - 学習後: 学習済みエンコーダ $q_{\phi_x}, q_{\phi_\theta}$ が **そのまま式 (2) の被積分関数として近似尤度 $\hat{L}$ に投入される**
 - SMC 中は **パラメータ側エンコーダの順伝播だけで尤度評価**
 
-→ 図: 2 エンコーダ + 1 デコーダの入出力 [assets/mvae_io.png](assets/mvae_io.png)（中央に w:880 で配置）
+→ 図: 論文 Fig.1 スタイルの MVAE 全体像 [assets/mvae_io.png](assets/mvae_io.png)（FRF 波形/パラメータ棒 → 台形のエンコーダ → 潜在空間で重なる 2 ガウス → 共有 $z$ → 台形のデコーダ → 復元 FRF、中央に w:960 で配置）
 
 ---
 
@@ -150,7 +150,7 @@
 |--------------------------|----------|-----------------------------------------------------|
 | 潜在空間の 2 分布整列    | Slide 3  | [assets/latent_overlap.png](assets/latent_overlap.png) |
 | パイプライン             | Slide 4  | [assets/pipeline.png](assets/pipeline.png)          |
-| MVAE 入出力（2 エンコーダ + 1 デコーダ） | Slide 5 | [assets/mvae_io.png](assets/mvae_io.png) |
+| MVAE 全体像（論文 Fig.1 スタイル）        | Slide 5 | [assets/mvae_io.png](assets/mvae_io.png) |
 | Protocol コード抜粋      | Slide 7  | スライド内コードブロック                            |
 | 事後分布散布図           | Slide 9  | [../../posterior_plot.png](../../posterior_plot.png) |
 
@@ -164,7 +164,7 @@
 - セクション全体の `font-size` を 26px → 24px、`padding` を 50/60px → 40/56px に圧縮
 - Slide 3（LSBI 定式化）は Slide 9 と同じ `bg right` パターンで右側に潜在空間図を背景配置、左に式 (1)(2) とテキストを自然に流す
 - Slide 4（全体像）の pipeline.png を w:1050 → w:980 に縮小
-- Slide 5（MVAE 学習）は 2 エンコーダ + 1 デコーダの I/O を示す新図 mvae_io.png を中央配置
+- Slide 5（MVAE 学習）は論文 Fig.1 スタイルの新図 mvae_io.png（台形エンコーダ・潜在空間内のガウス重なり・台形デコーダ）を中央 w:960 で配置
 
 ---
 
