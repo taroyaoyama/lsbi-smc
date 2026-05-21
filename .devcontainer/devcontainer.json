@@ -42,7 +42,7 @@
         },
         "files.autoSave": "onFocusChange",
         "files.eol": "\n",
-        "terminal.integrated.defaultProfile.linux": "zsh",
+        "terminal.integrated.defaultProfile.linux": "tmux",
         "terminal.integrated.profiles.linux": {
           "bash": {
             "path": "bash",
@@ -50,6 +50,16 @@
           },
           "zsh": {
             "path": "zsh"
+          },
+          "tmux": {
+            "overrideName": true,
+            "path": "bash",
+            "args": ["-c", "tmux new-session -A -s \"${PWD/$HOME/\\~}\" \\; set-option -g mouse on"]
+          }, // 2つ目以降のタブ用（-s を指定せず、新しいセッションを強制起動）
+          "tmux-new": {
+            "overrideName": true,
+            "path": "bash",
+            "args": ["-c", "tmux new-session \\; set-option -g mouse on"]
           }
         },
         // each language specific settings

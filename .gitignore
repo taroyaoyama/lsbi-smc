@@ -225,7 +225,7 @@ train_data.npz
 posterior.mat
 
 # Plots
-posterior_plot.png
+# posterior_plot.png
 
 # Presentation build artifacts (source .md is committed, builds are not)
 docs/presentation/02_slides.pdf

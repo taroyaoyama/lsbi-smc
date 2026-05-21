@@ -29,6 +29,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     jq \
     nano \
     vim \
+    tmux \
     tcpdump \
     python3-minimal \
     rsyslog \
