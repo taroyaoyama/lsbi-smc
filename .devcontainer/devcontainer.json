@@ -24,7 +24,8 @@
         "redhat.vscode-yaml",
         "ms-vscode.makefile-tools",
         "yzhang.markdown-all-in-one",
-        "bierner.markdown-mermaid"
+        "bierner.markdown-mermaid",
+        "marp-team.marp-vscode"
       ],
       "settings": {
         "claudeCode.respectGitIgnore": true,

@@ -228,7 +228,7 @@ posterior.mat
 # posterior_plot.png
 
 # Presentation build artifacts (source .md is committed, builds are not)
-docs/presentation/02_slides.pdf
+# docs/presentation/02_slides.pdf
 docs/presentation/02_slides.pptx
 docs/presentation/02_slides.html
 docs/presentation/02_slides_en.pdf

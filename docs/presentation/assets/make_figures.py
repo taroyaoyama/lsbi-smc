@@ -10,7 +10,7 @@ from pathlib import Path
 import japanize_matplotlib  # noqa: F401  -- registers IPAex Gothic for plt
 import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib.patches import FancyArrowPatch, FancyBboxPatch
+from matplotlib.patches import Circle, FancyArrowPatch, FancyBboxPatch, Polygon, Rectangle
 
 ASSETS = Path(__file__).parent
 
@@ -55,6 +55,11 @@ class L10n:
     latent_obs: str
     latent_theta: str
     latent_prior: str
+    mvae_io_enc: str
+    mvae_io_dec: str
+    mvae_io_input_x: str
+    mvae_io_input_th: str
+    mvae_io_latent: str
 
 
 JA = L10n(
@@ -87,6 +92,11 @@ JA = L10n(
     latent_obs="観測 $q_{\\phi_x}$",
     latent_theta="$\\theta$ 候補 $q_{\\phi_\\theta}$",
     latent_prior="$p(z)\\!=\\!\\mathcal{N}(0,I)$\n(破線, 潜在事前)",
+    mvae_io_enc="Encoder",
+    mvae_io_dec="Decoder",
+    mvae_io_input_x="FRF",
+    mvae_io_input_th="パラメータ",
+    mvae_io_latent="潜在空間",
 )
 
 EN = L10n(
@@ -119,6 +129,11 @@ EN = L10n(
     latent_obs="Obs. $q_{\\phi_x}$",
     latent_theta=r"$\theta$ cand. $q_{\phi_\theta}$",
     latent_prior="$p(z)\\!=\\!\\mathcal{N}(0,I)$\n(dashed, latent prior)",
+    mvae_io_enc="Encoder",
+    mvae_io_dec="Decoder",
+    mvae_io_input_x="FRF",
+    mvae_io_input_th="parameter",
+    mvae_io_latent="Latent Space",
 )
 
 
@@ -347,11 +362,177 @@ def make_latent_overlap(loc: L10n):
     plt.close(fig)
 
 
+# ---------- figure 4: MVAE I/O (paper Fig.1 style) ----------
+
+
+def make_mvae_io(loc: L10n):
+    fig, ax = plt.subplots(figsize=(13, 5.0))
+    ax.set_xlim(0, 13)
+    ax.set_ylim(0, 5.0)
+    ax.axis("off")
+
+    orange = "#e07a3c"
+    green = "#2c8a4f"
+    outline = "#1a3a5c"
+    prior_gray = "#b3b3b3"
+
+    # ---- input FRF (mini plot, top-left) ----
+    rng = np.random.default_rng(7)
+    f = np.linspace(0, 1, 400)
+    frf = (
+        np.exp(-((f - 0.16) / 0.022) ** 2) * 1.00
+        + np.exp(-((f - 0.34) / 0.030) ** 2) * 0.72
+        + np.exp(-((f - 0.56) / 0.045) ** 2) * 0.45
+        + np.exp(-((f - 0.82) / 0.035) ** 2) * 0.55
+        + 0.04
+        + np.abs(rng.normal(0, 0.012, len(f)))
+    )
+    in_x = ax.inset_axes([0.025, 0.69, 0.090, 0.20])
+    in_x.plot(f, frf, color="black", linewidth=0.7)
+    in_x.set_xticks([])
+    in_x.set_yticks([])
+    for s in in_x.spines.values():
+        s.set_visible(False)
+    ax.text(0.91, 4.66, loc.mvae_io_input_x, fontsize=12,
+            ha="center", color=outline)
+    ax.text(1.92, 3.95, r"$\mathbf{x}$", fontsize=18,
+            color=outline, fontweight="bold", va="center")
+
+    # ---- input parameter theta (mini bar chart, bottom-left) ----
+    in_th = ax.inset_axes([0.025, 0.18, 0.090, 0.18])
+    bars = [0.62, 0.85, 1.05, 0.78]
+    in_th.bar(range(4), bars, color="#777", edgecolor="black",
+              linewidth=0.4, width=0.72)
+    in_th.set_ylim(0, 1.3)
+    in_th.set_xticks([])
+    in_th.set_yticks([])
+    for s in in_th.spines.values():
+        s.set_visible(False)
+    ax.text(0.91, 0.55, loc.mvae_io_input_th, fontsize=12,
+            ha="center", color=outline)
+    ax.text(1.92, 1.20, r"$\boldsymbol{\theta}$", fontsize=18,
+            color=outline, fontweight="bold", va="center")
+
+    # ---- encoder q_phi_x (trapezoid narrowing right) ----
+    enc_x = Polygon(
+        [(2.45, 4.70), (4.30, 4.25), (4.30, 3.30), (2.45, 2.85)],
+        closed=True, facecolor="white", edgecolor=outline, linewidth=2.0,
+    )
+    ax.add_patch(enc_x)
+    ax.text(3.38, 3.90, loc.mvae_io_enc, ha="center", va="center",
+            fontsize=13, fontweight="bold", color=outline)
+    ax.text(3.38, 3.50, r"$q_{\phi_x}(z\mid x)$", ha="center", va="center",
+            fontsize=12, color=outline)
+
+    # orange z output bar
+    ax.add_patch(Rectangle((4.40, 3.35), 0.20, 0.85,
+                           facecolor=orange, edgecolor=orange))
+    ax.text(4.83, 3.78, r"$\mathbf{z}$", fontsize=13,
+            color=orange, fontweight="bold", va="center")
+
+    # ---- encoder q_phi_theta (trapezoid narrowing right) ----
+    enc_th = Polygon(
+        [(2.45, 1.95), (4.30, 1.50), (4.30, 0.55), (2.45, 0.10)],
+        closed=True, facecolor="white", edgecolor=outline, linewidth=2.0,
+    )
+    ax.add_patch(enc_th)
+    ax.text(3.38, 1.15, loc.mvae_io_enc, ha="center", va="center",
+            fontsize=13, fontweight="bold", color=outline)
+    ax.text(3.38, 0.75, r"$q_{\phi_\theta}(z\mid \theta)$",
+            ha="center", va="center", fontsize=12, color=outline)
+
+    # green z output bar
+    ax.add_patch(Rectangle((4.40, 0.60), 0.20, 0.85,
+                           facecolor=green, edgecolor=green))
+    ax.text(4.83, 1.02, r"$\mathbf{z}$", fontsize=13,
+            color=green, fontweight="bold", va="center")
+
+    # ---- Latent Space box ----
+    lx, ly, lw, lh = 5.45, 1.30, 3.60, 3.10
+    ax.add_patch(Rectangle((lx, ly), lw, lh,
+                           facecolor="white", edgecolor=outline, linewidth=1.5))
+    ax.text(lx + lw / 2, ly + lh - 0.25, loc.mvae_io_latent,
+            ha="center", fontsize=12.5, color=outline)
+
+    # prior gray rings
+    cx_p, cy_p = lx + lw / 2, ly + lh / 2 - 0.05
+    for r in (1.15, 0.78, 0.45):
+        ax.add_patch(Circle((cx_p, cy_p), r, facecolor="none",
+                            edgecolor=prior_gray, linewidth=1.1))
+
+    # orange gaussian
+    cx_o, cy_o = cx_p - 0.55, cy_p + 0.45
+    for r in (0.55, 0.32):
+        ax.add_patch(Circle((cx_o, cy_o), r, facecolor="none",
+                            edgecolor=orange, linewidth=1.6))
+    ax.add_patch(Circle((cx_o, cy_o), 0.08,
+                        facecolor=orange, edgecolor=orange))
+
+    # green gaussian
+    cx_g, cy_g = cx_p + 0.45, cy_p - 0.30
+    for r in (0.55, 0.32):
+        ax.add_patch(Circle((cx_g, cy_g), r, facecolor="none",
+                            edgecolor=green, linewidth=1.6))
+    ax.add_patch(Circle((cx_g, cy_g), 0.08,
+                        facecolor=green, edgecolor=green))
+
+    ax.text(cx_p, ly + 0.30, r"$q_{\mathcal{Z}}(z)$",
+            ha="center", fontsize=12, color=outline)
+
+    # dashed arrows: encoder outputs → latent clouds
+    ax.annotate("", xy=(cx_o - 0.45, cy_o + 0.05), xytext=(4.78, 3.78),
+                arrowprops=dict(arrowstyle="->", color=orange,
+                                linewidth=1.3, linestyle=(0, (5, 3))))
+    ax.annotate("", xy=(cx_g - 0.45, cy_g - 0.20), xytext=(4.78, 1.02),
+                arrowprops=dict(arrowstyle="->", color=green,
+                                linewidth=1.3, linestyle=(0, (5, 3))))
+
+    # dashed arrows: latent clouds → sampled z (right side)
+    z_bar_x = 9.55
+    ax.annotate("", xy=(z_bar_x, 3.05), xytext=(cx_o + 0.4, cy_o + 0.0),
+                arrowprops=dict(arrowstyle="->", color=orange,
+                                linewidth=1.3, linestyle=(0, (5, 3))))
+    ax.annotate("", xy=(z_bar_x, 2.65), xytext=(cx_g + 0.4, cy_g - 0.0),
+                arrowprops=dict(arrowstyle="->", color=green,
+                                linewidth=1.3, linestyle=(0, (5, 3))))
+
+    # ---- sampled z bar (gray) ----
+    ax.add_patch(Rectangle((z_bar_x, 2.40), 0.20, 0.85,
+                           facecolor="#5a5a5a", edgecolor="#5a5a5a"))
+    ax.text(z_bar_x + 0.40, 2.83, r"$\mathbf{z}$", fontsize=13,
+            color="#333", fontweight="bold", va="center")
+
+    # ---- decoder (trapezoid widening right) ----
+    dec = Polygon(
+        [(10.30, 3.40), (12.15, 3.85), (12.15, 1.85), (10.30, 2.30)],
+        closed=True, facecolor="white", edgecolor=outline, linewidth=2.0,
+    )
+    ax.add_patch(dec)
+    ax.text(11.22, 3.00, loc.mvae_io_dec, ha="center", va="center",
+            fontsize=13, fontweight="bold", color=outline)
+    ax.text(11.22, 2.62, r"$p_\eta(x\mid z)$", ha="center", va="center",
+            fontsize=12, color=outline)
+
+    # ---- reconstructed FRF (mini plot, far right) ----
+    out_x = ax.inset_axes([0.952, 0.49, 0.040, 0.20])
+    out_x.plot(f, frf * 0.95, color="black", linewidth=0.7)
+    out_x.set_xticks([])
+    out_x.set_yticks([])
+    for s in out_x.spines.values():
+        s.set_visible(False)
+    ax.text(12.60, 2.85, r"$\mathbf{x}$", fontsize=18,
+            color=outline, fontweight="bold", va="center")
+
+    fig.savefig(ASSETS / f"mvae_io{loc.suffix}.png")
+    plt.close(fig)
+
+
 if __name__ == "__main__":
     for loc in (JA, EN):
         make_pipeline(loc)
         make_vae_mvae_compare(loc)
         make_latent_overlap(loc)
+        make_mvae_io(loc)
     print("Generated:")
     for p in sorted(ASSETS.glob("*.png")):
         print(f"  - {p.relative_to(ASSETS.parent.parent.parent)}")
