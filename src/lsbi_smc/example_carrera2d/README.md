@@ -10,6 +10,15 @@ This is **step 1** of the research plan: confirm the LSBI-SMC pipeline behaves o
 the paper's setup before scaling to the high-dimensional examples (beam n=10,
 n=102, tomography n=236).
 
+> **Scope (what this does and does NOT test).** The paper compares three SMC
+> *MCMC moves* (pCN / cov-pCN / pc-M) using the **true** likelihood — LSBI/MVAE
+> never appear there. Here we instead **swap in the LSBI latent likelihood** and
+> use the existing **RW-Metropolis** move, on **Example 1 only**, in a single
+> configuration (+ a `tau` sweep). So this checks the *approximate-likelihood*
+> side, not the sampler comparison. The paper's J-sweep × 50 repetitions,
+> pCN/cov-pCN moves, and Examples 2–4 are out of scope here. Full breakdown:
+> `notes/theme1/lab-notes/01-scope-paper-vs-verification.md` in the parent repo.
+
 ## Problem
 
 | | |
