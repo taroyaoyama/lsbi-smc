@@ -223,9 +223,11 @@ train_data.npz
 
 # Inference results
 posterior.mat
+posterior.npz
 
 # Plots
 # posterior_plot.png
+posterior_compare.png
 
 # Presentation build artifacts (source .md is committed, builds are not)
 # docs/presentation/02_slides.pdf
